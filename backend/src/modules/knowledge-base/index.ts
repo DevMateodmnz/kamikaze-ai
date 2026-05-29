@@ -5,10 +5,9 @@
  *
  * Responsibilities:
  * - Store knowledge base entries (store hours, addresses, payment policies, FAQs)
- * - Search relevant entries by query
- * - Retrieve entries by category
- *
- * NOT IMPLEMENTED - This is a scaffold for Phase 2
+ * - Search relevant entries by query, category, or tags
+ * - Retrieve entries with verified data for deterministic replies
+ * - Never expose unverified placeholder data to customers
  */
 
 export { knowledgeBaseService } from './service.js';

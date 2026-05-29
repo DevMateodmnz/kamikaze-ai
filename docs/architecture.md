@@ -548,6 +548,46 @@ All 52 lint warnings are about async functions without `await` expressions. This
 
 **Why no AI yet**: Deterministic layer validates the message flow before introducing AI complexity. Real AI (MiniMax) comes after this foundation is proven.
 
+### PR-006: Static Knowledge Base (Completed)
+
+**Date**: 2026-05-29
+
+**What was added**:
+- `src/modules/knowledge-base/service.ts` — Real Prisma-backed KB service with CRUD + search
+- `src/modules/knowledge-base/routes.ts` — Read-only KB endpoints (list, search, category, tags, by ID)
+- `src/modules/knowledge-base/index.ts` — Module exports updated
+- `src/scripts/seed-knowledge-base.ts` — Idempotent seed script (16 entries: 3 verified FAQs, 13 NEEDS_BUSINESS_VERIFICATION placeholders)
+- `backend/tests/unit/knowledge-base.test.ts` — 14 tests for KB service interface and routes
+- `docs/knowledge-base.md` — KB documentation
+- KB integrated into `/messages/process` endpoint via `getVerifiedAnswerForIntent()`
+
+**KB Categories**: `store_info` | `faq` | `policy` | `product`
+
+**Verified vs Unverified**:
+- Verified (safe for customer replies): `active=true`, `confidence > 0.5`, no placeholder markers
+- Unverified (NOT exposed to customers): `active=false` OR `confidence <= 0.5` OR contains `NEEDS_BUSINESS_VERIFICATION`
+
+**Intent → KB Mapping**:
+- `store_hours` / `store_location` / `payment_methods` / `shipping` → `store_info`
+- `warranty_or_return` → `policy`
+
+**Decision Engine Integration**:
+- When `action=reply`, `/messages/process` calls `getVerifiedAnswerForIntent(intent)`
+- If verified KB entry exists → use KB answer instead of template
+- If no verified entry → use template reply from decision-engine.ts
+
+**Seed Results**: 16 entries created (3 active verified FAQs, 13 inactive placeholders)
+
+**Why no AI yet**: KB is deterministic, pre-verified business data. AI (MiniMax) comes after real WhatsApp webhook and verified KB data.
+
+**Business data still needed from Kamikaze Bikes**:
+- Store hours (address, exact times)
+- Store location (address, how to get there)
+- Payment methods (what cards, cash, financing options)
+- Shipping info (zones, costs, delivery times)
+- Warranty terms
+- Return/change policy
+
 ### PR-004 and beyond: See Phase Roadmap
 
 *Last Updated: 2026-05-29*

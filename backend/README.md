@@ -23,6 +23,7 @@ npm run dev
 | `npm run lint:fix` | Auto-fix lint errors |
 | `npm test` | Run Vitest tests (unit + integration, DB tests skip gracefully if unavailable) |
 | `npm run test:watch` | Run tests in watch mode |
+| `npm run seed:kb` | Seed knowledge base with initial data |
 | `npx prisma studio` | Open Prisma Studio |
 
 ## Module Structure
@@ -34,7 +35,7 @@ npm run dev
 | `customers` | Customer identification and management | ✅ Implemented |
 | `intent-detection` | Deterministic keyword-based intent detection and decision engine | ✅ Implemented |
 | `ai-gateway` | AI provider abstraction layer | ❌ Scaffold (501) |
-| `knowledge-base` | Store information retrieval | ❌ Scaffold (501) |
+| `knowledge-base` | KB entries for store info, FAQs, policies | ✅ Implemented |
 | `escalations` | Human handoff | ❌ Scaffold (501) |
 | `analytics` | Event logging and cost tracking | ❌ Scaffold (501) |
 | `security` | API key and webhook verification | ❌ Scaffold (501) |
@@ -52,7 +53,11 @@ npm run dev
 | `GET /api/v1/conversations/:id` | conversations | ✅ Implemented |
 | `POST /api/v1/conversations/:id/escalate` | conversations | ❌ Scaffold (501) |
 | `GET /api/v1/customers/:id` | customers | ✅ Implemented |
-| `GET /api/v1/knowledge-base/search` | knowledge-base | ❌ Scaffold (501) |
+| `GET /api/v1/knowledge-base` | knowledge-base | ✅ Implemented |
+| `GET /api/v1/knowledge-base/search` | knowledge-base | ✅ Implemented |
+| `GET /api/v1/knowledge-base/category/:category` | knowledge-base | ✅ Implemented |
+| `GET /api/v1/knowledge-base/tags/:tags` | knowledge-base | ✅ Implemented |
+| `GET /api/v1/knowledge-base/:id` | knowledge-base | ✅ Implemented |
 | `GET /api/v1/escalations/active` | escalations | ❌ Scaffold (501) |
 | `GET /api/v1/analytics/ai-costs` | analytics | ❌ Scaffold (501) |
 
@@ -96,6 +101,25 @@ Deterministic keyword-based intent classification — no AI required.
 `POST /api/v1/messages/process` — stores inbound, detects intent, makes decision, optionally stores outbound reply.
 
 Response includes `processing` block with intent, confidence, action, and `outboundMessageId` when reply was stored.
+
+## Knowledge Base
+
+Static store information, FAQs, and policies stored in PostgreSQL.
+
+### Categories
+`store_info` | `faq` | `policy` | `product`
+
+### Verified vs Unverified Data
+- **Verified** (safe for customer replies): `active=true`, `confidence > 0.5`, no placeholder markers
+- **Unverified** (not exposed to customers): `active=false` OR `confidence <= 0.5` OR contains `NEEDS_BUSINESS_VERIFICATION`
+
+### Intent → KB Mapping
+`store_hours` → `store_info` | `store_location` → `store_info` | `payment_methods` → `store_info` | `shipping` → `store_info` | `warranty_or_return` → `policy`
+
+When `action=reply` in the decision engine, KB verified answers are used if available; otherwise template reply is used.
+
+### Seed Data
+Run `npm run seed:kb` to populate initial KB entries. Entries with `active=false` are placeholders that need business verification before activation.
 
 ## Environment
 
