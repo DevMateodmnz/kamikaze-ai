@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Prisma migrations
+**/prisma/migrations/
+
+# Test coverage
+coverage/
+
+# Docker
+.dockerignore
+
+# Misc
+tmp/
+temp/
+
+# n8n local data (n8n stores workflows/credentials locally)
+n8n/
+.data/
+
+# Backend-specific (at repo root, these are empty until build)
+backend/node_modules/
+backend/dist/

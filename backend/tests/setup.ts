@@ -1,0 +1,14 @@
+// Test setup - runs before each test file
+// Set environment variables for tests
+
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
+process.env.NODE_ENV = 'test';
+process.env.PORT = '3000';
+process.env.LOG_LEVEL = 'info';
+process.env.INTERNAL_API_KEY = 'test-api-key-for-testing';
+process.env.AI_PROVIDER = 'minimax';
+process.env.AI_FALLBACK_PROVIDER = '';
+process.env.AI_MIN_CONFIDENCE_THRESHOLD = '0.6';
+process.env.AI_TIMEOUT_MS = '20000';
+process.env.AI_MAX_TOKENS_REPLY = '400';
+process.env.AI_MAX_TOKENS_INTENT = '100';

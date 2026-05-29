@@ -1,0 +1,28 @@
+/**
+ * AI Gateway Provider Interface
+ *
+ * Each provider must implement this interface.
+ *
+ * NOT IMPLEMENTED - This is documentation for Phase 3 providers
+ *
+ * Example provider structure:
+ *
+ * import type { AiProvider, AiProviderName } from '../types.js';
+ *
+ * class MinimaxProvider implements AiProvider {
+ *   readonly name: AiProviderName = 'minimax';
+ *   readonly capabilities = {
+ *     maxTokens: 400,
+ *     supportsStreaming: false,
+ *     supportsVision: false,
+ *     costPerToken: { input: 0.001, output: 0.002 },
+ *   };
+ *
+ *   async generateReply(input) { ... }
+ *   async classifyIntent(input) { ... }
+ *   async summarize(input) { ... }
+ *   async extractLeadData(input) { ... }
+ * }
+ */
+
+export {};

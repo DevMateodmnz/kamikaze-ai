@@ -1,0 +1,208 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CUSTOMER
+// ============================================
+
+model Customer {
+  id          String        @id @default(cuid())
+  phone       String        @unique @db.VarChar(20)
+  name        String?       @db.VarChar(100)
+  optedOut    Boolean       @default(false)
+  firstSeenAt DateTime      @default(now())
+  lastSeenAt  DateTime      @updatedAt
+  metadata    Json?
+
+  conversations Conversation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+}
+
+// ============================================
+// CONVERSATION
+// ============================================
+
+model Conversation {
+  id             String            @id @default(cuid())
+  customerId     String
+  customer       Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  status         ConversationStatus @default(ACTIVE)
+  currentIntent  String?           @db.VarChar(50)
+  context        Json              @default("{}")
+  messageCount   Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  closedAt       DateTime?
+
+  messages    Message[]
+  escalations Escalation[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ESCALATED
+  CLOSED
+  ABANDONED
+}
+
+// ============================================
+// MESSAGE
+// ============================================
+
+model Message {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      MessageDirection
+  content        String         @db.Text
+  intent         String?        @db.VarChar(50)
+  confidence     Float?
+  aiProvider     String?        @db.VarChar(20)
+  tokensUsed     Int?
+  createdAt      DateTime       @default(now())
+
+  // WhatsApp metadata (unique constraint for idempotency)
+  whatsappMessageId String?      @unique @db.VarChar(100)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([whatsappMessageId])
+}
+
+enum MessageDirection {
+  INBOUND   // Customer → Bot
+  OUTBOUND  // Bot → Customer
+  SYSTEM    // Internal events
+}
+
+// ============================================
+// KNOWLEDGE BASE
+// ============================================
+
+model KnowledgeBaseEntry {
+  id         String   @id @default(cuid())
+  category   String   @db.VarChar(50) // 'store_info' | 'faq' | 'policy' | 'product'
+  question   String?  @db.Text
+  answer     String   @db.Text
+  tags       String[] // ['horarios', 'sucursales', 'pagos']
+  confidence Float    @default(0.5)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([category])
+  @@index([tags])
+}
+
+// ============================================
+// ESCALATION
+// ============================================
+
+model Escalation {
+  id             String          @id @default(cuid())
+  conversationId String
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reason         String          @db.VarChar(100) // 'low_confidence' | 'stock_question' | 'human_request' | etc.
+  reasonDetail   String?         @db.Text
+  suggestedReply String?         @db.Text
+  status         EscalationStatus @default(OPEN)
+  notifiedAt     DateTime?
+  resolvedAt     DateTime?
+  resolvedBy     String?         @db.VarChar(100)
+  resolutionNote String?         @db.Text
+  createdAt      DateTime        @default(now())
+
+  @@index([conversationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum EscalationStatus {
+  OPEN
+  NOTIFIED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+// ============================================
+// AI INTERACTION LOG
+// ============================================
+
+model AiInteractionLog {
+  id             String   @id @default(cuid())
+  conversationId String?
+  operation      String   @db.VarChar(50) // 'generate_reply' | 'classify_intent' | 'summarize'
+  provider       String   @db.VarChar(20)
+  model          String   @db.VarChar(50)
+  inputTokens    Int
+  outputTokens   Int
+  costUsd        Float?
+  latencyMs      Int
+  confidence     Float?
+  success        Boolean
+  errorMessage   String?  @db.Text
+
+  // Input stored as SHA256 hash — NOT the original customer message
+  inputHash       String   @db.VarChar(64)
+  outputSummary   String?  @db.Text // Truncated, anonymized
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+// ============================================
+// BUSINESS RULE
+// ============================================
+
+model BusinessRule {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  category    String   @db.VarChar(50) // 'guardrail' | 'escalation' | 'response'
+  config      Json                  // Rule-specific configuration
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// PRODUCT REFERENCE
+// Minimal curated product list for AI context
+// NOT a full catalog — catalog sync is a later module
+// ============================================
+
+model ProductReference {
+  id          String    @id @default(cuid())
+  externalId  String?   @unique @db.VarChar(100) // ID from website/CSV
+  name        String    @db.VarChar(200)
+  type        String?   @db.VarChar(50)  // 'MTB' | 'RUTA' | 'GRAVEL' | etc.
+  basePrice   Decimal?  @db.Decimal(12,2)
+  description String?   @db.Text
+  url         String?   @db.VarChar(500)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([type])
+  @@index([externalId])
+}
