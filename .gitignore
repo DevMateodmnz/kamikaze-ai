@@ -47,3 +47,6 @@ n8n/.n8n/
 # Backend-specific (at repo root, these are empty until build)
 backend/node_modules/
 backend/dist/
+
+# Local tool cache (OpenCode/Gentle AI)
+.atl/
