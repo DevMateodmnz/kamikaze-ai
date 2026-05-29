@@ -510,6 +510,44 @@ All 52 lint warnings are about async functions without `await` expressions. This
 - `backend/src/modules/messages/routes.ts` — added POST /outbound
 - `backend/README.md` — updated module/endpoint status table
 
+### PR-004B: n8n Simulated Workflow (Completed)
+
+**Date**: 2026-05-29
+
+**What was added**:
+- `n8n/workflows/004b-simulated-message-flow.json` — n8n workflow export: Manual Trigger → POST /messages/inbound → Create Simulated Reply → POST /messages/outbound → GET /conversations/:id → Output Summary
+- `docs/workflows.md` — workflow design and documentation
+- `docs/manual-test-pr004b.md` — step-by-step manual test guide
+- `n8n/README.md` — updated workflow overview
+- `backend/tests/unit/n8n-workflow.test.ts` — 8 tests validating workflow JSON structure
+
+**Gitignore update**: `!n8n/workflows/` added to allow workflow exports while ignoring local n8n runtime data.
+
+**Validation**: build ✅ lint ✅ tests 46 passing ✅ API endpoints manually verified
+
+### PR-005: Deterministic Decision Layer (Completed)
+
+**Date**: 2026-05-29
+
+**What was added**:
+- `src/modules/intent-detection/types.ts` — Intent type definitions and detector config
+- `src/modules/intent-detection/detector.ts` — Keyword-based deterministic intent classifier (15 intents)
+- `src/modules/intent-detection/decision-engine.ts` — Decision engine with Spanish reply templates and escalation rules
+- `src/modules/intent-detection/index.ts` — Module exports
+- `POST /api/v1/messages/process` — new endpoint: stores inbound, detects intent, makes decision, optionally stores outbound reply
+- `backend/tests/unit/intent-detection.test.ts` — 44 tests for intent detection and decision engine
+
+**Intent Detection** (no AI, keyword-based):
+- greeting, thanks, goodbye, human_request, stock_question, price_question, discount_request, warranty_or_return, complaint, product_interest, store_hours, store_location, payment_methods, shipping, unknown
+
+**Decision Rules**:
+- **escalate**: human_request, stock_question, price_question, discount_request, warranty_or_return, complaint → conversation status → ESCALATED
+- **reply**: greeting, thanks, goodbye, product_interest, store_hours, store_location, payment_methods, shipping, unknown → deterministic reply stored as OUTBOUND with aiProvider=deterministic
+
+**Safety**: Never invents stock, prices, discounts, or warranty terms. Escalates instead.
+
+**Why no AI yet**: Deterministic layer validates the message flow before introducing AI complexity. Real AI (MiniMax) comes after this foundation is proven.
+
 ### PR-004 and beyond: See Phase Roadmap
 
 *Last Updated: 2026-05-29*

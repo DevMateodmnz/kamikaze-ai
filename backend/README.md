@@ -32,6 +32,7 @@ npm run dev
 | `messages` | Message storage (inbound/outbound) with idempotency | ✅ Implemented |
 | `conversations` | Conversation state management | ✅ Implemented |
 | `customers` | Customer identification and management | ✅ Implemented |
+| `intent-detection` | Deterministic keyword-based intent detection and decision engine | ✅ Implemented |
 | `ai-gateway` | AI provider abstraction layer | ❌ Scaffold (501) |
 | `knowledge-base` | Store information retrieval | ❌ Scaffold (501) |
 | `escalations` | Human handoff | ❌ Scaffold (501) |
@@ -47,6 +48,7 @@ npm run dev
 | `GET /api/v1/ping` | API | ✅ Working |
 | `POST /api/v1/messages/inbound` | messages | ✅ Implemented |
 | `POST /api/v1/messages/outbound` | messages | ✅ Implemented |
+| `POST /api/v1/messages/process` | messages | ✅ Implemented |
 | `GET /api/v1/conversations/:id` | conversations | ✅ Implemented |
 | `POST /api/v1/conversations/:id/escalate` | conversations | ❌ Scaffold (501) |
 | `GET /api/v1/customers/:id` | customers | ✅ Implemented |
@@ -71,6 +73,29 @@ npm run dev
 - Duplicate detection returns existing records with `duplicate: true`
 - Direction: `INBOUND` (customer) | `OUTBOUND` (bot) | `SYSTEM` (internal)
 - AI metadata: intent, confidence, provider, tokens — stored when available
+
+## Intent Detection & Decision Engine
+
+Deterministic keyword-based intent classification — no AI required.
+
+### Supported Intents
+`greeting` | `thanks` | `goodbye` | `human_request` | `stock_question` | `price_question` | `discount_request` | `warranty_or_return` | `complaint` | `product_interest` | `store_hours` | `store_location` | `payment_methods` | `shipping` | `unknown`
+
+### Decision Actions
+- **reply**: Safe deterministic response stored as outbound message with `aiProvider: deterministic`
+- **escalate**: Conversation status → ESCALATED; no reply stored yet; awaits human handling
+- **stored_only**: Message stored but no action taken (fallback for truly ambiguous cases)
+
+### Safety Rules
+- **NEVER** invent stock levels, prices, discounts, or warranty terms
+- **ALWAYS** escalate: stock questions, price questions, discount requests, warranty/return, complaints, human requests
+- **REPLY safely** with qualifying questions: greeting, product interest, store info
+- **ESCALATE** when uncertain about facts
+
+### Process Endpoint
+`POST /api/v1/messages/process` — stores inbound, detects intent, makes decision, optionally stores outbound reply.
+
+Response includes `processing` block with intent, confidence, action, and `outboundMessageId` when reply was stored.
 
 ## Environment
 
