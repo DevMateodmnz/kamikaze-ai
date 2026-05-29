@@ -1,90 +1,254 @@
 /**
  * Escalations Service
  *
- * Placeholder service - NOT IMPLEMENTED
- *
- * Will be implemented in Phase 4
+ * Handles escalation record creation, retrieval, status updates, and resolution.
+ * Uses Prisma for persistence. No external notifications yet.
  */
 
-import type { EscalationReason, EscalationResponse } from './types.js';
+import type { EscalationStatus } from '@prisma/client';
+import prisma from '../../config/database.js';
+import type { EscalationReason } from './types.js';
 import { AppError } from '../../utils/app-error.js';
 
+export type { EscalationReason };
+
+export interface CreateEscalationInput {
+  conversationId: string;
+  reason: string;
+  reasonDetail?: string | null;
+  suggestedReply?: string | null;
+}
+
+export interface EscalationResponse {
+  id: string;
+  conversationId: string;
+  reason: string;
+  reasonDetail: string | null;
+  suggestedReply: string | null;
+  status: EscalationStatus;
+  notifiedAt: Date | null;
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
+  resolutionNote: string | null;
+  createdAt: Date;
+}
+
+export interface ResolveEscalationInput {
+  resolvedBy: string;
+  resolutionNote?: string;
+}
+
+// ============================================
+// Create
+// ============================================
+
 /**
- * Create a new escalation
- *
- * NOT IMPLEMENTED - throws in scaffold
+ * Create a new escalation record.
  */
-export async function createEscalation(
-  _conversationId: string,
-  _reason: EscalationReason,
-  _reasonDetail?: string,
-  _suggestedReply?: string
-): Promise<EscalationResponse> {
-  throw new AppError('Escalations module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
+export async function createEscalation(input: CreateEscalationInput): Promise<EscalationResponse> {
+  const escalation = await prisma.escalation.create({
+    data: {
+      conversationId: input.conversationId,
+      reason: input.reason,
+      reasonDetail: input.reasonDetail ?? null,
+      suggestedReply: input.suggestedReply ?? null,
+      status: 'OPEN',
+    },
   });
+
+  return mapPrismaToResponse(escalation);
+}
+
+// ============================================
+// Read
+// ============================================
+
+/**
+ * Get escalation by ID.
+ * Returns null if not found.
+ */
+export async function getEscalationById(id: string): Promise<EscalationResponse | null> {
+  const escalation = await prisma.escalation.findUnique({
+    where: { id },
+  });
+
+  return escalation ? mapPrismaToResponse(escalation) : null;
 }
 
 /**
- * Get escalation by ID
- *
- * NOT IMPLEMENTED - throws in scaffold
+ * List all escalations, optionally filtered by status.
  */
-export async function getEscalationById(
-  _escalationId: string
-): Promise<EscalationResponse | null> {
-  throw new AppError('Escalations module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
+export async function listEscalations(options?: {
+  status?: EscalationStatus;
+  limit?: number;
+}): Promise<EscalationResponse[]> {
+  const escalations = await prisma.escalation.findMany({
+    where: {
+      ...(options?.status && { status: options.status }),
+    },
+    take: options?.limit,
+    orderBy: { createdAt: 'desc' },
   });
+
+  return escalations.map(mapPrismaToResponse);
 }
 
 /**
- * Get active escalations (for admin panel)
- *
- * NOT IMPLEMENTED - throws in scaffold
+ * List escalations for a specific conversation.
+ */
+export async function listEscalationsByConversation(
+  conversationId: string
+): Promise<EscalationResponse[]> {
+  const escalations = await prisma.escalation.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return escalations.map(mapPrismaToResponse);
+}
+
+/**
+ * Get active (open) escalations for admin panel.
  */
 export async function getActiveEscalations(): Promise<EscalationResponse[]> {
-  throw new AppError('Escalations module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
+  const escalations = await prisma.escalation.findMany({
+    where: {
+      status: {
+        in: ['OPEN', 'NOTIFIED', 'IN_PROGRESS'],
+      },
+    },
+    orderBy: { createdAt: 'desc' },
   });
+
+  return escalations.map(mapPrismaToResponse);
 }
 
+// ============================================
+// Update
+// ============================================
+
 /**
- * Mark escalation as notified (Discord webhook sent)
- *
- * NOT IMPLEMENTED - throws in scaffold
+ * Update escalation status.
  */
-export async function markNotified(_escalationId: string): Promise<void> {
-  throw new AppError('Escalations module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
-  });
+export async function updateEscalationStatus(
+  id: string,
+  status: EscalationStatus
+): Promise<EscalationResponse> {
+  try {
+    const escalation = await prisma.escalation.update({
+      where: { id },
+      data: { status },
+    });
+
+    return mapPrismaToResponse(escalation);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2025') {
+      throw new AppError('Escalation not found', {
+        statusCode: 404,
+        code: 'NOT_FOUND',
+      });
+    }
+    throw error;
+  }
 }
 
 /**
- * Resolve an escalation
- *
- * NOT IMPLEMENTED - throws in scaffold
+ * Mark escalation as notified (Discord webhook sent).
+ * Sets notifiedAt timestamp and status to NOTIFIED.
+ */
+export async function markNotified(id: string): Promise<EscalationResponse> {
+  try {
+    const escalation = await prisma.escalation.update({
+      where: { id },
+      data: {
+        status: 'NOTIFIED',
+        notifiedAt: new Date(),
+      },
+    });
+
+    return mapPrismaToResponse(escalation);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2025') {
+      throw new AppError('Escalation not found', {
+        statusCode: 404,
+        code: 'NOT_FOUND',
+      });
+    }
+    throw error;
+  }
+}
+
+/**
+ * Resolve an escalation.
+ * Sets status to RESOLVED, resolution metadata, and resolvedAt timestamp.
  */
 export async function resolveEscalation(
-  _escalationId: string,
-  _resolvedBy: string,
-  _resolutionNote?: string
-): Promise<void> {
-  throw new AppError('Escalations module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
-  });
+  id: string,
+  input: ResolveEscalationInput
+): Promise<EscalationResponse> {
+  try {
+    const escalation = await prisma.escalation.update({
+      where: { id },
+      data: {
+        status: 'RESOLVED',
+        resolvedBy: input.resolvedBy,
+        resolutionNote: input.resolutionNote ?? null,
+        resolvedAt: new Date(),
+      },
+    });
+
+    return mapPrismaToResponse(escalation);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2025') {
+      throw new AppError('Escalation not found', {
+        statusCode: 404,
+        code: 'NOT_FOUND',
+      });
+    }
+    throw error;
+  }
+}
+
+// ============================================
+// Mapper
+// ============================================
+
+function mapPrismaToResponse(escalation: {
+  id: string;
+  conversationId: string;
+  reason: string;
+  reasonDetail: string | null;
+  suggestedReply: string | null;
+  status: EscalationStatus;
+  notifiedAt: Date | null;
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
+  resolutionNote: string | null;
+  createdAt: Date;
+}): EscalationResponse {
+  return {
+    id: escalation.id,
+    conversationId: escalation.conversationId,
+    reason: escalation.reason,
+    reasonDetail: escalation.reasonDetail,
+    suggestedReply: escalation.suggestedReply,
+    status: escalation.status,
+    notifiedAt: escalation.notifiedAt,
+    resolvedAt: escalation.resolvedAt,
+    resolvedBy: escalation.resolvedBy,
+    resolutionNote: escalation.resolutionNote,
+    createdAt: escalation.createdAt,
+  };
 }
 
 // Export as singleton service object
 export const escalationsService = {
   createEscalation,
   getEscalationById,
+  listEscalations,
+  listEscalationsByConversation,
   getActiveEscalations,
+  updateEscalationStatus,
   markNotified,
   resolveEscalation,
 };

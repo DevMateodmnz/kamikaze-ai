@@ -36,7 +36,7 @@ npm run dev
 | `intent-detection` | Deterministic keyword-based intent detection and decision engine | ✅ Implemented |
 | `ai-gateway` | AI provider abstraction layer | ❌ Scaffold (501) |
 | `knowledge-base` | KB entries for store info, FAQs, policies | ✅ Implemented |
-| `escalations` | Human handoff | ❌ Scaffold (501) |
+| `escalations` | Human handoff records | ✅ Implemented |
 | `analytics` | Event logging and cost tracking | ❌ Scaffold (501) |
 | `security` | API key and webhook verification | ❌ Scaffold (501) |
 
@@ -51,14 +51,19 @@ npm run dev
 | `POST /api/v1/messages/outbound` | messages | ✅ Implemented |
 | `POST /api/v1/messages/process` | messages | ✅ Implemented |
 | `GET /api/v1/conversations/:id` | conversations | ✅ Implemented |
-| `POST /api/v1/conversations/:id/escalate` | conversations | ❌ Scaffold (501) |
+| `POST /api/v1/conversations/:id/escalate` | conversations | ✅ Implemented |
 | `GET /api/v1/customers/:id` | customers | ✅ Implemented |
 | `GET /api/v1/knowledge-base` | knowledge-base | ✅ Implemented |
 | `GET /api/v1/knowledge-base/search` | knowledge-base | ✅ Implemented |
 | `GET /api/v1/knowledge-base/category/:category` | knowledge-base | ✅ Implemented |
 | `GET /api/v1/knowledge-base/tags/:tags` | knowledge-base | ✅ Implemented |
 | `GET /api/v1/knowledge-base/:id` | knowledge-base | ✅ Implemented |
-| `GET /api/v1/escalations/active` | escalations | ❌ Scaffold (501) |
+| `GET /api/v1/escalations/active` | escalations | ✅ Implemented |
+| `GET /api/v1/escalations/:id` | escalations | ✅ Implemented |
+| `GET /api/v1/escalations` | escalations | ✅ Implemented |
+| `PATCH /api/v1/escalations/:id/status` | escalations | ✅ Implemented |
+| `PATCH /api/v1/escalations/:id/resolve` | escalations | ✅ Implemented |
+| `PATCH /api/v1/escalations/:id/notify` | escalations | ✅ Implemented |
 | `GET /api/v1/analytics/ai-costs` | analytics | ❌ Scaffold (501) |
 
 ## Persistence
@@ -88,8 +93,13 @@ Deterministic keyword-based intent classification — no AI required.
 
 ### Decision Actions
 - **reply**: Safe deterministic response stored as outbound message with `aiProvider: deterministic`
-- **escalate**: Conversation status → ESCALATED; no reply stored yet; awaits human handling
+- **escalate**: Conversation status → ESCALATED; escalation record created; awaits human handling
 - **stored_only**: Message stored but no action taken (fallback for truly ambiguous cases)
+
+### Escalation Reasons
+`human_request` | `stock_confirmation_required` | `price_confirmation_required` | `discount_requires_approval` | `warranty_policy_required` | `customer_expressed_dissatisfaction` | `unknown`
+
+**No external notification yet** — escalation records are created but Discord/Slack webhook not implemented.
 
 ### Safety Rules
 - **NEVER** invent stock levels, prices, discounts, or warranty terms

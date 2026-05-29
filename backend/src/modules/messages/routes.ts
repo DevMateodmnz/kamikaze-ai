@@ -14,6 +14,7 @@ import { conversationsService } from '../conversations/service.js';
 import { detectIntent } from '../intent-detection/detector.js';
 import { makeDecision } from '../intent-detection/decision-engine.js';
 import { getVerifiedAnswerForIntent } from '../knowledge-base/service.js';
+import { escalationsService } from '../escalations/service.js';
 
 const inboundMessageSchema = z.object({
   whatsappMessageId: z.string().min(1).max(100),
@@ -206,7 +207,8 @@ export const messagesRouter: FastifyPluginAsync = async (app: FastifyInstance) =
         decision.outboundMessageId = outboundMessageId;
       }
 
-      // If action is escalate, update conversation status
+      // If action is escalate, update conversation status and create escalation record
+      let escalationId: string | null = null;
       if (decision.action === 'escalate') {
         await conversationsService.updateConversationStatus(
           result.conversation.id,
@@ -217,6 +219,15 @@ export const messagesRouter: FastifyPluginAsync = async (app: FastifyInstance) =
           result.conversation.id,
           detection.intent
         );
+
+        // Create escalation record
+        const escalation = await escalationsService.createEscalation({
+          conversationId: result.conversation.id,
+          reason: decision.escalationReason ?? 'unknown',
+          reasonDetail: detection.intent,
+          suggestedReply: null,
+        });
+        escalationId = escalation.id;
       }
 
       return {
@@ -232,6 +243,7 @@ export const messagesRouter: FastifyPluginAsync = async (app: FastifyInstance) =
           replyText: decision.replyText,
           escalationReason: decision.escalationReason,
           outboundMessageId,
+          escalationId,
         },
       };
     }

@@ -588,6 +588,41 @@ All 52 lint warnings are about async functions without `await` expressions. This
 - Warranty terms
 - Return/change policy
 
+### PR-007: Escalation Records (Completed)
+
+**Date**: 2026-05-29
+
+**What was added**:
+- `src/modules/escalations/service.ts` — Real Prisma-backed escalation service (create, get, list, update status, mark notified, resolve)
+- `src/modules/escalations/routes.ts` — Escalation endpoints (GET list, GET active, GET by id, PATCH status, PATCH notify, PATCH resolve)
+- `src/modules/conversations/routes.ts` — Wired POST /conversations/:id/escalate to create escalation record
+- `src/modules/messages/routes.ts` — /messages/process now creates escalation record when action=escalate
+- `backend/tests/unit/escalations.test.ts` — 18 new tests for escalation service and integration
+
+**Escalation record created when action=escalate**:
+1. Store inbound message (idempotent)
+2. Update conversation status → ESCALATED
+3. Update conversation currentIntent
+4. Create Escalation row with reason, reasonDetail, status=OPEN
+5. Return escalationId in processing response
+
+**Escalation statuses**: OPEN → NOTIFIED → IN_PROGRESS → RESOLVED → CLOSED
+
+**No external notification yet** — escalation records are created and can be queried, but Discord/Slack webhook not implemented. The `/escalations/:id/notify` endpoint is internal only.
+
+**API endpoints added**:
+- GET /api/v1/escalations (list, filter by status)
+- GET /api/v1/escalations/active
+- GET /api/v1/escalations/:id
+- PATCH /api/v1/escalations/:id/status
+- PATCH /api/v1/escalations/:id/notify (internal marker — no external notification)
+- PATCH /api/v1/escalations/:id/resolve
+- POST /api/v1/conversations/:id/escalate (manual escalation)
+
+**Duplicate behavior**: Duplicates do not create duplicate escalation records.
+
+**Next step**: Implement Discord webhook notification via n8n or backend.
+
 ### PR-004 and beyond: See Phase Roadmap
 
 *Last Updated: 2026-05-29*
