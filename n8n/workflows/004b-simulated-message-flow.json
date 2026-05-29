@@ -1,0 +1,367 @@
+{
+  "name": "004b-simulated-message-flow",
+  "nodes": [
+    {
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {}
+    },
+    {
+      "id": "create-payload",
+      "name": "Create WhatsApp-like Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [340, 300],
+      "parameters": {
+        "mode": "json",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "msg-id",
+              "name": "whatsappMessageId",
+              "value": "={{ $json.id || 'sim-wamid-' + $now() }}",
+              "type": "string"
+            },
+            {
+              "id": "from",
+              "name": "from",
+              "value": "+5493812345678",
+              "type": "string"
+            },
+            {
+              "id": "text",
+              "name": "text",
+              "value": "Hola, tengo interesse en una bicicleta MTB",
+              "type": "string"
+            },
+            {
+              "id": "timestamp",
+              "name": "timestamp",
+              "value": "={{ Math.floor(Date.now() / 1000).toString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "post-inbound",
+      "name": "POST /messages/inbound",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [580, 300],
+      "parameters": {
+        "url": "={{ $env.BACKEND_URL }}/api/v1/messages/inbound",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "id": "content-type",
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "id": "whatsappMessageId",
+              "name": "whatsappMessageId",
+              "value": "={{ $json.whatsappMessageId }}"
+            },
+            {
+              "id": "from",
+              "name": "from",
+              "value": "={{ $json.from }}"
+            },
+            {
+              "id": "text",
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "id": "timestamp",
+              "name": "timestamp",
+              "value": "={{ $json.timestamp }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "backendApi": {
+          "id": "1",
+          "name": "Backend API (local dev)"
+        }
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "create-reply",
+      "name": "Create Simulated Reply",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [820, 300],
+      "parameters": {
+        "mode": "json",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "conversationId",
+              "name": "conversationId",
+              "value": "={{ $json('conversationId') }}",
+              "type": "string"
+            },
+            {
+              "id": "content",
+              "name": "content",
+              "value": "[SIMULATED] Recibimos tu consulta y la guardamos correctamente. Un asesor podrá revisarla en breve.",
+              "type": "string"
+            },
+            {
+              "id": "intent",
+              "name": "intent",
+              "value": "simulated_greeting",
+              "type": "string"
+            },
+            {
+              "id": "confidence",
+              "name": "confidence",
+              "value": 0.99,
+              "type": "number"
+            },
+            {
+              "id": "aiProvider",
+              "name": "aiProvider",
+              "value": "simulated",
+              "type": "string"
+            },
+            {
+              "id": "tokensUsed",
+              "name": "tokensUsed",
+              "value": 0,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "post-outbound",
+      "name": "POST /messages/outbound",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1060, 300],
+      "parameters": {
+        "url": "={{ $env.BACKEND_URL }}/api/v1/messages/outbound",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "id": "content-type",
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "id": "conversationId",
+              "name": "conversationId",
+              "value": "={{ $json.conversationId }}"
+            },
+            {
+              "id": "content",
+              "name": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "id": "intent",
+              "name": "intent",
+              "value": "={{ $json.intent }}"
+            },
+            {
+              "id": "confidence",
+              "name": "confidence",
+              "value": "={{ $json.confidence }}"
+            },
+            {
+              "id": "aiProvider",
+              "name": "aiProvider",
+              "value": "={{ $json.aiProvider }}"
+            },
+            {
+              "id": "tokensUsed",
+              "name": "tokensUsed",
+              "value": "={{ $json.tokensUsed }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "backendApi": {
+          "id": "1",
+          "name": "Backend API (local dev)"
+        }
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "get-conversation",
+      "name": "GET /conversations/:id",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 300],
+      "parameters": {
+        "url": "={{ $env.BACKEND_URL }}/api/v1/conversations/{{ $json.conversationId }}",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "id": "accept",
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "backendApi": {
+          "id": "1",
+          "name": "Backend API (local dev)"
+        }
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "output-summary",
+      "name": "Output Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1540, 300],
+      "parameters": {
+        "mode": "json",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "workflow",
+              "name": "workflow",
+              "value": "004b-simulated-message-flow",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "value": "completed",
+              "type": "string"
+            },
+            {
+              "id": "customerId",
+              "name": "customerId",
+              "value": "={{ $('POST /messages/inbound').item.json.customerId }}",
+              "type": "string"
+            },
+            {
+              "id": "conversationId",
+              "name": "conversationId",
+              "value": "={{ $('POST /messages/inbound').item.json.conversationId }}",
+              "type": "string"
+            },
+            {
+              "id": "inboundMessageId",
+              "name": "inboundMessageId",
+              "value": "={{ $('POST /messages/inbound').item.json.messageId }}",
+              "type": "string"
+            },
+            {
+              "id": "outboundMessageId",
+              "name": "outboundMessageId",
+              "value": "={{ $('POST /messages/outbound').item.json.messageId }}",
+              "type": "string"
+            },
+            {
+              "id": "finalConversation",
+              "name": "finalConversation",
+              "value": "={{ $json }}",
+              "type": "string"
+            },
+            {
+              "id": "simulated",
+              "name": "simulated",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "note",
+              "name": "note",
+              "value": "This is a simulated reply - no AI provider was called",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "continueOnFail": false
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [{ "node": "Create WhatsApp-like Payload", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create WhatsApp-like Payload": {
+      "main": [
+        [{ "node": "POST /messages/inbound", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /messages/inbound": {
+      "main": [
+        [{ "node": "Create Simulated Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Simulated Reply": {
+      "main": [
+        [{ "node": "POST /messages/outbound", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /messages/outbound": {
+      "main": [
+        [{ "node": "GET /conversations/:id", "type": "main", "index": 0 }]
+      ]
+    },
+    "GET /conversations/:id": {
+      "main": [
+        [{ "node": "Output Summary", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "nodes",
+    "saveManualExecutions": true,
+    "timezone": "America/Argentina/Buenos_Aires"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2026-05-29T17:00:00.000Z",
+  "versionId": "1",
+  "meta": {
+    "templateId": "004b-simulated-message-flow"
+  }
+}
