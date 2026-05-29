@@ -35,3 +35,6 @@ coverage/
 # Misc
 tmp/
 temp/
+
+# Atl (local tool cache - not project source)
+.atl/
