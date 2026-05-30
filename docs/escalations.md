@@ -2,9 +2,9 @@
 
 ## Overview
 
-Escalation records persist the human handoff data when `/messages/process` decides `action=escalate`. No external notifications yet.
+Escalation records persist the human handoff data when `/messages/process` decides `action=escalate`. Discord webhook notification via n8n is now implemented.
 
-**Status**: Implemented
+**Status**: Implemented with n8n Discord notification
 
 ---
 

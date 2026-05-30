@@ -127,3 +127,87 @@ This workflow does NOT:
 - Access production systems
 
 It only validates that the backend API contract works end-to-end.
+
+---
+
+# n8n Workflows — PR-008 Escalation Discord Notification
+
+## Workflow: 008-escalation-discord-notification
+
+**Purpose**: Fetch active escalations and send Discord webhook notifications to the team.
+
+**File**: `n8n/workflows/008-escalation-discord-notification.json`
+
+## Flow
+
+```
+Manual Trigger (or Schedule)
+    ↓
+GET /api/v1/escalations/active → fetch OPEN escalations
+    ↓
+Check Escalations Exist (IF node)
+    ↓ (true branch)
+For Each Escalation
+    ↓
+GET /api/v1/conversations/:id → fetch customer phone and context
+    ↓
+Format Discord Message → build rich embed with escalation details
+    ↓
+POST Discord Webhook → send to team channel
+    ↓
+PATCH /api/v1/escalations/:id/notify → mark as NOTIFIED
+    ↓
+Output Summary
+```
+
+## Discord Message Content
+
+The notification includes:
+- **Escalation ID**: record ID
+- **Conversation ID**: conversation reference
+- **Customer Phone**: customer's WhatsApp number
+- **Reason**: escalation reason (e.g., `human_request`, `stock_confirmation_required`)
+- **Reason Detail**: additional context from decision engine
+- **Status**: current escalation status
+- **Created At**: timestamp of creation
+
+## Backend Endpoints Used
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/escalations/active` | GET | Fetch OPEN escalations only |
+| `/api/v1/conversations/:id` | GET | Fetch customer phone for notification |
+| `/api/v1/escalations/:id/notify` | PATCH | Mark escalation as NOTIFIED after Discord send |
+
+## Configuration
+
+### Environment Variables (n8n)
+
+Set these in n8n → Settings → Variables:
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `BACKEND_URL` | `http://localhost:3000` | Host-based backend |
+| `INTERNAL_API_KEY` | value from `backend/.env` | Auth header for backend |
+| `DISCORD_WEBHOOK_URL` | `https://discord.com/api/webhooks/...` | Your Discord webhook URL |
+
+### Duplicate Prevention
+
+- `GET /escalations/active` returns only OPEN escalations
+- After sending Discord, `PATCH /escalations/:id/notify` sets status=NOTIFIED
+- Subsequent runs skip escalations already notified
+
+## Importing the Workflow
+
+1. Open n8n at http://localhost:5678
+2. Click "Import from File" (top-right menu)
+3. Select `n8n/workflows/008-escalation-discord-notification.json`
+4. Go to Settings → Variables → Add:
+   - `BACKEND_URL` = `http://localhost:3000`
+   - `DISCORD_WEBHOOK_URL` = your Discord webhook URL
+5. Create credential `Backend API (local dev)` with your `X-API-Key` value
+6. Open the workflow and click "Test workflow"
+
+## Manual Test
+
+See `docs/manual-tests/pr008-escalation-discord.md` for step-by-step test instructions.

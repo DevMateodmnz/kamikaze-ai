@@ -7,11 +7,14 @@ This directory contains exported JSON files for n8n workflows.
 | File | Purpose | Status |
 |------|---------|--------|
 | `004b-simulated-message-flow.json` | End-to-end API validation without real WhatsApp or AI | ✅ Implemented |
+| `008-escalation-discord-notification.json` | Discord webhook notification for active escalations | ✅ Implemented |
 | `README.md` | This file | ✅ |
 
 ## PR-004B: Simulated Message Flow
 
 See [docs/workflows.md](../docs/workflows.md) for detailed documentation.
+
+## PR-004B: Simulated Message Flow
 
 The simulated workflow validates the full backend API contract:
 1. Simulates a WhatsApp-like inbound message (no real WhatsApp)
@@ -20,6 +23,15 @@ The simulated workflow validates the full backend API contract:
 4. Calls `POST /api/v1/messages/outbound`
 5. Verifies conversation state via `GET /api/v1/conversations/:id`
 6. Returns structured summary
+
+## PR-008: Escalation Discord Notification
+
+Sends Discord webhook notifications when there are active (OPEN) escalations:
+1. Manual trigger (or schedule)
+2. Fetches OPEN escalations via `GET /api/v1/escalations/active`
+3. For each escalation: fetches conversation context, formats Discord message, sends webhook
+4. Marks escalation as NOTIFIED via `PATCH /api/v1/escalations/:id/notify`
+5. Outputs summary of notified escalations
 
 ## Importing Workflows
 
@@ -33,5 +45,6 @@ The simulated workflow validates the full backend API contract:
 | File | Purpose | Notes |
 |------|---------|-------|
 | `004b-simulated-message-flow.json` | API contract validation | Uses localhost backend, no real WhatsApp |
+| `008-escalation-discord-notification.json` | Escalation Discord notification | Sends webhook for OPEN escalations |
 
 *Full WhatsApp + AI workflow implementation in later phases.*
