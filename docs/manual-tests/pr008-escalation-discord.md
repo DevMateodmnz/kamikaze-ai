@@ -55,7 +55,7 @@ curl -X POST http://localhost:3000/api/v1/conversations/{conversationId}/escalat
 
 ```bash
 # Check escalations
-curl http://localhost:3000/api/v1/escalations/active \
+curl http://localhost:3000/api/v1/escalations?status=OPEN \
   -H "X-API-Key: change_me_to_a_secure_random_key" | jq .
 ```
 
@@ -128,7 +128,7 @@ Run the workflow again. Expected behavior:
 
 ```bash
 # Verify no OPEN escalations remain
-curl http://localhost:3000/api/v1/escalations/active \
+curl http://localhost:3000/api/v1/escalations?status=OPEN \
   -H "X-API-Key: change_me_to_a_secure_random_key" | jq '.escalations | length'
 # Should return 0 (or fewer escalations if you created more)
 ```

@@ -134,7 +134,7 @@ describe('n8n Workflow Exports', () => {
       const nodeNames = workflow.nodes.map((n: { name: string }) => n.name);
 
       expect(nodeNames).toContain('Manual Trigger');
-      expect(nodeNames).toContain('GET Active Escalations');
+      expect(nodeNames).toContain('GET OPEN Escalations');
       expect(nodeNames).toContain('Check Escalations Exist');
       expect(nodeNames).toContain('For Each Escalation');
       expect(nodeNames).toContain('GET Conversation Context');
@@ -144,11 +144,11 @@ describe('n8n Workflow Exports', () => {
       expect(nodeNames).toContain('Output Summary');
     });
 
-    it('should use GET /api/v1/escalations/active', () => {
+    it('should use GET /api/v1/escalations?status=OPEN', () => {
       const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
-      const node = workflow.nodes.find((n: { name: string }) => n.name === 'GET Active Escalations');
+      const node = workflow.nodes.find((n: { name: string }) => n.name === 'GET OPEN Escalations');
       expect(node.parameters.url).toContain('BACKEND_URL');
-      expect(node.parameters.url).toContain('/api/v1/escalations/active');
+      expect(node.parameters.url).toContain('/api/v1/escalations?status=OPEN');
       expect(node.parameters.method).toBe('GET');
     });
 
@@ -202,12 +202,12 @@ describe('n8n Workflow Exports', () => {
     it('should have correct connection flow', () => {
       const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
 
-      // Manual Trigger → GET Active Escalations
+      // Manual Trigger → GET OPEN Escalations
       expect(workflow.connections['Manual Trigger']).toBeDefined();
-      expect(workflow.connections['Manual Trigger'].main[0][0].node).toBe('GET Active Escalations');
+      expect(workflow.connections['Manual Trigger'].main[0][0].node).toBe('GET OPEN Escalations');
 
-      // GET Active Escalations → Check Escalations Exist
-      expect(workflow.connections['GET Active Escalations']).toBeDefined();
+      // GET OPEN Escalations → Check Escalations Exist
+      expect(workflow.connections['GET OPEN Escalations']).toBeDefined();
 
       // Check Escalations Exist → For Each Escalation (true branch)
       expect(workflow.connections['Check Escalations Exist']).toBeDefined();
@@ -236,7 +236,7 @@ describe('n8n Workflow Exports', () => {
     it('should include X-API-Key header in HTTP calls', () => {
       const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
 
-      const getEscalations = workflow.nodes.find((n: { name: string }) => n.name === 'GET Active Escalations');
+      const getEscalations = workflow.nodes.find((n: { name: string }) => n.name === 'GET OPEN Escalations');
       const getConversation = workflow.nodes.find((n: { name: string }) => n.name === 'GET Conversation Context');
       const patchNotify = workflow.nodes.find((n: { name: string }) => n.name === 'PATCH Mark Notified');
 

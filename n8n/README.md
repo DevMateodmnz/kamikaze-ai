@@ -28,7 +28,7 @@ The simulated workflow validates the full backend API contract:
 
 Sends Discord webhook notifications when there are active (OPEN) escalations:
 1. Manual trigger (or schedule)
-2. Fetches OPEN escalations via `GET /api/v1/escalations/active`
+2. Fetches OPEN escalations via `GET /api/v1/escalations?status=OPEN`
 3. For each escalation: fetches conversation context, formats Discord message, sends webhook
 4. Marks escalation as NOTIFIED via `PATCH /api/v1/escalations/:id/notify`
 5. Outputs summary of notified escalations

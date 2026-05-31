@@ -11,13 +11,13 @@
     },
     {
       "id": "fetch-active-escalations",
-      "name": "GET Active Escalations",
+      "name": "GET OPEN Escalations",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [340, 300],
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.BACKEND_URL }}/api/v1/escalations/active",
+        "url": "={{ $env.BACKEND_URL }}/api/v1/escalations?status=OPEN",
         "options": {
           "timeout": 10000
         },
@@ -221,14 +221,14 @@
       "main": [
         [
           {
-            "node": "GET Active Escalations",
+            "node": "GET OPEN Escalations",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "GET Active Escalations": {
+    "GET OPEN Escalations": {
       "main": [
         [
           {

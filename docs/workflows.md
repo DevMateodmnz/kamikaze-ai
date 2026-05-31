@@ -143,7 +143,7 @@ It only validates that the backend API contract works end-to-end.
 ```
 Manual Trigger (or Schedule)
     ↓
-GET /api/v1/escalations/active → fetch OPEN escalations
+GET /api/v1/escalations?status=OPEN → fetch OPEN escalations
     ↓
 Check Escalations Exist (IF node)
     ↓ (true branch)
@@ -175,7 +175,7 @@ The notification includes:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/v1/escalations/active` | GET | Fetch OPEN escalations only |
+| `/api/v1/escalations?status=OPEN` | GET | Fetch OPEN escalations only |
 | `/api/v1/conversations/:id` | GET | Fetch customer phone for notification |
 | `/api/v1/escalations/:id/notify` | PATCH | Mark escalation as NOTIFIED after Discord send |
 
@@ -193,7 +193,7 @@ Set these in n8n → Settings → Variables:
 
 ### Duplicate Prevention
 
-- `GET /escalations/active` returns only OPEN escalations
+- `GET /escalations?status=OPEN` returns only OPEN escalations
 - After sending Discord, `PATCH /escalations/:id/notify` sets status=NOTIFIED
 - Subsequent runs skip escalations already notified
 
