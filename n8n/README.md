@@ -41,6 +41,10 @@ Sends Discord webhook notifications when there are OPEN escalations:
 
 **CLI Validation**: `./scripts/validate-pr008.sh`
 
+**Automated Setup**: `./scripts/setup-pr008-n8n.sh` (imports + activates workflow)
+
+**Note**: After first-time setup, the webhook may require toggling the workflow Active OFF then ON once in the n8n UI for webhook registration.
+
 ## Importing Workflows
 
 1. Open n8n at http://localhost:5678
