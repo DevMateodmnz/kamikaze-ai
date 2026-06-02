@@ -31,9 +31,10 @@ See [Workflow Activation](#workflow-activation) below.
 1. Backend running on `http://localhost:3000`
 2. n8n accessible at `http://localhost:5678`
 3. At least one escalation in OPEN status (see "Creating a Test Escalation" below)
-4. `DISCORD_WEBHOOK_URL` environment variable set in n8n with a valid Discord webhook
+4. **A real Discord webhook URL** in `DISCORD_WEBHOOK_URL` — the placeholder `REPLACE_ME` will fail validation by design. The webhook must successfully deliver to Discord for the escalation to be marked NOTIFIED.
 5. `BACKEND_URL` and `INTERNAL_API_KEY` configured in n8n
 6. Workflow imported and **active** in n8n (for CLI validation via webhook)
+7. **If Discord notification fails, the escalation stays OPEN** — this is intentional. Only successful Discord delivery triggers the NOTIFIED transition.
 
 ## Workflow Activation
 

@@ -215,6 +215,24 @@ describe('n8n Workflow Exports', () => {
       expect(node.parameters.url).toContain('DISCORD_WEBHOOK_URL');
     });
 
+    it('should NOT continue on Discord webhook failure', () => {
+      const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
+      const node = workflow.nodes.find((n: { name: string }) => n.name === 'POST Discord Webhook');
+
+      // continueOnFail must be false (or absent) — failed Discord must block PATCH Mark Notified
+      expect(node.continueOnFail).not.toBe(true);
+    });
+
+    it('should have PATCH Mark Notified after POST Discord Webhook', () => {
+      const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
+      const discordNode = workflow.nodes.find((n: { name: string }) => n.name === 'POST Discord Webhook');
+
+      // Discord node must NOT have continueOnFail=true (tested above)
+      // PATCH Mark Notified must only run after successful Discord POST
+      expect(workflow.connections['POST Discord Webhook']).toBeDefined();
+      expect(workflow.connections['POST Discord Webhook'].main[0][0].node).toBe('PATCH Mark Notified');
+    });
+
     it('should not contain hardcoded Discord webhook URL', () => {
       const content = readFileSync(workflowPath, 'utf-8');
       // Should use env variable placeholder, not real URL

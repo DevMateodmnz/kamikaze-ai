@@ -120,6 +120,15 @@ for var in BACKEND_URL INTERNAL_API_KEY DISCORD_WEBHOOK_URL; do
 done
 pass "Env vars: BACKEND_URL, INTERNAL_API_KEY, DISCORD_WEBHOOK_URL (all present)"
 
+# ---- 3b. Validate Discord webhook URL (no placeholder) ---------
+if echo "$DISCORD_WEBHOOK_URL" | grep -qiE "REPLACE|example|placeholder|discord\.com/api/webhooks/$"; then
+  fail "DISCORD_WEBHOOK_URL appears to be a placeholder"
+  info "Set a real Discord webhook URL in .env for full validation."
+  info "Get one from: Discord Server Settings → Integrations → Webhooks → New Webhook"
+  exit 1
+fi
+pass "DISCORD_WEBHOOK_URL appears valid (not a placeholder)"
+
 # ---- 4. Health checks ---------------------------------------
 info "Checking backend health..."
 BACKEND_HEALTH=$(curl -s "$LOCAL_BACKEND/health/ready" 2>/dev/null || echo '{"status":"error"}')
@@ -194,15 +203,10 @@ if [ "$HTTP_CODE" = "404" ]; then
   info "Then re-run this script."
   exit 1
 elif [ "$HTTP_CODE" = "500" ]; then
-  # 500 can mean: (a) auth rejected, (b) Discord URL placeholder, (c) backend error
-  # Check if the error is auth-related (fatal) or a downstream failure (warn and continue)
-  if echo "$WEBHOOK_BODY" | grep -qi "UNAUTHORIZED\|Missing X-API-Key\|Invalid X-API-Key"; then
-    fail "Webhook auth failed — check INTERNAL_API_KEY ($WEBHOOK_BODY)"
-    exit 1
-  fi
-  warn "Webhook returned HTTP 500 (workflow execution error)"
-  info "This is expected if DISCORD_WEBHOOK_URL is a placeholder or Discord is unreachable."
-  info "The Auth Validate node passed (no auth error). Validating downstream state..."
+  fail "Webhook returned HTTP 500 — workflow execution error"
+  info "Check n8n execution logs for the failing node."
+  info "Common causes: DISCORD_WEBHOOK_URL unreachable, backend auth mismatch."
+  exit 1
 elif [ "$HTTP_CODE" != "200" ]; then
   fail "Webhook returned HTTP $HTTP_CODE"
   info "Body: $WEBHOOK_BODY"
