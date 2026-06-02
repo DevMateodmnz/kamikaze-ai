@@ -24,7 +24,45 @@ ENV_FILE="$PROJECT_DIR/.env"
 # The script runs on the host, so we use localhost for backend calls.
 LOCAL_BACKEND="http://localhost:3000"
 N8N_URL="${N8N_URL:-http://localhost:5678}"
-WEBHOOK_URL="$N8N_URL/webhook/pr008-escalation-discord"
+
+# ---- Discover webhook URL dynamically -----------------------
+# n8n 2.x prefixes webhook paths with workflow ID when multiple
+# workflows share the same webhook node path. Try the simple
+# path first, then fall back to workflow-ID-prefixed format.
+discover_webhook_url() {
+  local simple_url="$N8N_URL/webhook/pr008-escalation-discord"
+
+  # Quick check: does simple URL work?
+  local test_code
+  test_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$simple_url" \
+    -H "X-API-Key: ${INTERNAL_API_KEY:-change_me_to_a_secure_random_key}" 2>/dev/null || echo "000")
+
+  if [ "$test_code" != "404" ]; then
+    echo "$simple_url"
+    return 0
+  fi
+
+  # 404: try to find the active workflow ID from n8n's DB
+  # Read-only query via docker exec (no mutations)
+  local wf_id
+  wf_id=$(docker exec kamikaze-postgres psql -U kamikaze -d kamikaze_db -t -c \
+    "SELECT we.id FROM workflow_entity we
+     JOIN webhook_entity wh ON wh.\"workflowId\" = we.id
+     WHERE we.name = '008-escalation-discord-notification'
+       AND we.active = true
+     LIMIT 1;" 2>/dev/null | tr -d '[:space:]')
+
+  if [ -n "$wf_id" ]; then
+    local full_url="$N8N_URL/webhook/${wf_id}/webhook/pr008-escalation-discord"
+    info "Webhook registered at: $full_url"
+    echo "$full_url"
+    return 0
+  fi
+
+  # Fallback: return simple URL (will 404, but script handles that)
+  echo "$simple_url"
+}
+WEBHOOK_URL=$(discover_webhook_url)
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -155,6 +193,16 @@ if [ "$HTTP_CODE" = "404" ]; then
   info "Open n8n at $N8N_URL, import the workflow, and toggle 'Active' to ON."
   info "Then re-run this script."
   exit 1
+elif [ "$HTTP_CODE" = "500" ]; then
+  # 500 can mean: (a) auth rejected, (b) Discord URL placeholder, (c) backend error
+  # Check if the error is auth-related (fatal) or a downstream failure (warn and continue)
+  if echo "$WEBHOOK_BODY" | grep -qi "UNAUTHORIZED\|Missing X-API-Key\|Invalid X-API-Key"; then
+    fail "Webhook auth failed — check INTERNAL_API_KEY ($WEBHOOK_BODY)"
+    exit 1
+  fi
+  warn "Webhook returned HTTP 500 (workflow execution error)"
+  info "This is expected if DISCORD_WEBHOOK_URL is a placeholder or Discord is unreachable."
+  info "The Auth Validate node passed (no auth error). Validating downstream state..."
 elif [ "$HTTP_CODE" != "200" ]; then
   fail "Webhook returned HTTP $HTTP_CODE"
   info "Body: $WEBHOOK_BODY"

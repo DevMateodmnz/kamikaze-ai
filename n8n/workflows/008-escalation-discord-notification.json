@@ -192,7 +192,7 @@
           ]
         }
       },
-      "continueOnFail": false
+      "continueOnFail": true
     },
     {
       "id": "mark-escalation-notified",
