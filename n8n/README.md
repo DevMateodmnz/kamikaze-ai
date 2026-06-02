@@ -26,12 +26,20 @@ The simulated workflow validates the full backend API contract:
 
 ## PR-008: Escalation Discord Notification
 
-Sends Discord webhook notifications when there are active (OPEN) escalations:
-1. Manual trigger (or schedule)
+Sends Discord webhook notifications when there are OPEN escalations:
+
+**Triggers**:
+- **Webhook**: `POST /webhook/pr008-escalation-discord` (CLI automation, requires `X-API-Key` header)
+- **Manual Trigger**: n8n UI testing
+
+**Flow**:
+1. Webhook trigger with `X-API-Key` validation (rejects unauthenticated requests)
 2. Fetches OPEN escalations via `GET /api/v1/escalations?status=OPEN`
 3. For each escalation: fetches conversation context, formats Discord message, sends webhook
 4. Marks escalation as NOTIFIED via `PATCH /api/v1/escalations/:id/notify`
 5. Outputs summary of notified escalations
+
+**CLI Validation**: `./scripts/validate-pr008.sh`
 
 ## Importing Workflows
 

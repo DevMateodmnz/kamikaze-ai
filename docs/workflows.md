@@ -141,8 +141,12 @@ It only validates that the backend API contract works end-to-end.
 ## Flow
 
 ```
-Manual Trigger (or Schedule)
-    ↓
+Manual Trigger (UI testing)        Webhook (CLI automation)
+       │                                    │
+       │                            Auth Validate (X-API-Key check)
+       │                                    │
+       └────────────┬───────────────────────┘
+                    ↓
 GET /api/v1/escalations?status=OPEN → fetch OPEN escalations
     ↓
 Check Escalations Exist (IF node)
@@ -179,17 +183,35 @@ The notification includes:
 | `/api/v1/conversations/:id` | GET | Fetch customer phone for notification |
 | `/api/v1/escalations/:id/notify` | PATCH | Mark escalation as NOTIFIED after Discord send |
 
+## Triggers
+
+| Trigger | Path / Method | Auth | Use Case |
+|---------|--------------|------|----------|
+| Webhook | `POST /webhook/pr008-escalation-discord` | `X-API-Key` header (checked against `$env.INTERNAL_API_KEY`) | CLI automation |
+| Manual Trigger | n8n UI only | n8n login | UI testing |
+
+Both triggers feed into the same escalation notification logic.
+
 ## Configuration
 
 ### Environment Variables (n8n)
 
-Set these in n8n → Settings → Variables:
+Set these in n8n → Settings → Variables. They are also injected via docker-compose.yml:
 
 | Variable | Value | Notes |
 |----------|-------|-------|
-| `BACKEND_URL` | `http://localhost:3000` | Host-based backend |
-| `INTERNAL_API_KEY` | value from `backend/.env` | Auth header for backend |
+| `BACKEND_URL` | `http://172.17.0.1:3000` | Docker bridge to host backend |
+| `INTERNAL_API_KEY` | value from `.env` | Auth header for backend AND webhook validation |
 | `DISCORD_WEBHOOK_URL` | `https://discord.com/api/webhooks/...` | Your Discord webhook URL |
+
+### Webhook Authentication
+
+The `Auth Validate` Code node checks incoming webhook requests:
+- Missing `X-API-Key` header → rejected with UNAUTHORIZED error
+- Wrong `X-API-Key` value → rejected with UNAUTHORIZED error
+- Correct key → proceeds to fetch escalations
+
+The Manual Trigger bypasses this check (it's only accessible from the n8n UI).
 
 ### Duplicate Prevention
 
@@ -202,11 +224,17 @@ Set these in n8n → Settings → Variables:
 1. Open n8n at http://localhost:5678
 2. Click "Import from File" (top-right menu)
 3. Select `n8n/workflows/008-escalation-discord-notification.json`
-4. Go to Settings → Variables → Add:
-   - `BACKEND_URL` = `http://localhost:3000`
-   - `DISCORD_WEBHOOK_URL` = your Discord webhook URL
-5. Create credential `Backend API (local dev)` with your `X-API-Key` value
-6. Open the workflow and click "Test workflow"
+4. Go to Settings → Variables → verify `BACKEND_URL`, `INTERNAL_API_KEY`, `DISCORD_WEBHOOK_URL`
+5. **Toggle Active to ON** (top-right) to enable the webhook endpoint
+6. The webhook is now available at `http://localhost:5678/webhook/pr008-escalation-discord`
+
+## CLI Validation
+
+```bash
+./scripts/validate-pr008.sh
+```
+
+This script performs all validation steps automatically: health checks, test data creation, webhook trigger, status verification, duplicate prevention check, and auth rejection tests.
 
 ## Manual Test
 

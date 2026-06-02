@@ -134,6 +134,8 @@ describe('n8n Workflow Exports', () => {
       const nodeNames = workflow.nodes.map((n: { name: string }) => n.name);
 
       expect(nodeNames).toContain('Manual Trigger');
+      expect(nodeNames).toContain('Webhook');
+      expect(nodeNames).toContain('Auth Validate');
       expect(nodeNames).toContain('GET OPEN Escalations');
       expect(nodeNames).toContain('Check Escalations Exist');
       expect(nodeNames).toContain('For Each Escalation');
@@ -142,6 +144,52 @@ describe('n8n Workflow Exports', () => {
       expect(nodeNames).toContain('POST Discord Webhook');
       expect(nodeNames).toContain('PATCH Mark Notified');
       expect(nodeNames).toContain('Output Summary');
+    });
+
+    it('should have Webhook trigger with correct config', () => {
+      const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
+      const node = workflow.nodes.find((n: { name: string }) => n.name === 'Webhook');
+
+      expect(node).toBeDefined();
+      expect(node.type).toBe('n8n-nodes-base.webhook');
+      expect(node.parameters.httpMethod).toBe('POST');
+      expect(node.parameters.path).toBe('pr008-escalation-discord');
+      expect(node.parameters.responseMode).toBe('lastNode');
+    });
+
+    it('should have Auth Validate Code node before any notification node', () => {
+      const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
+      const authNode = workflow.nodes.find((n: { name: string }) => n.name === 'Auth Validate');
+
+      expect(authNode).toBeDefined();
+      expect(authNode.type).toBe('n8n-nodes-base.code');
+      expect(authNode.parameters.jsCode).toContain("headers['x-api-key']");
+      expect(authNode.parameters.jsCode).toContain('$env.INTERNAL_API_KEY');
+      expect(authNode.parameters.jsCode).toContain('UNAUTHORIZED');
+      expect(authNode.parameters.language).toBe('javascript');
+
+      // Auth Validate must connect to GET OPEN Escalations
+      expect(workflow.connections['Auth Validate']).toBeDefined();
+      expect(workflow.connections['Auth Validate'].main[0][0].node).toBe('GET OPEN Escalations');
+
+      // Webhook must connect to Auth Validate (not directly to any notification/HTTP node)
+      expect(workflow.connections['Webhook']).toBeDefined();
+      expect(workflow.connections['Webhook'].main[0][0].node).toBe('Auth Validate');
+    });
+
+    it('should validate X-API-Key before any backend or Discord call', () => {
+      const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
+      const authNode = workflow.nodes.find((n: { name: string }) => n.name === 'Auth Validate');
+
+      // The Auth Validate code must check the header against the env var
+      const code = authNode.parameters.jsCode;
+      expect(code).toContain('x-api-key');
+      expect(code).toContain('INTERNAL_API_KEY');
+
+      // Must throw on missing key (no bypass when headers are absent)
+      expect(code).toContain('Missing X-API-Key');
+      // Must throw on wrong key
+      expect(code).toContain('Invalid X-API-Key');
     });
 
     it('should use GET /api/v1/escalations?status=OPEN', () => {
@@ -206,6 +254,14 @@ describe('n8n Workflow Exports', () => {
       expect(workflow.connections['Manual Trigger']).toBeDefined();
       expect(workflow.connections['Manual Trigger'].main[0][0].node).toBe('GET OPEN Escalations');
 
+      // Webhook → Auth Validate
+      expect(workflow.connections['Webhook']).toBeDefined();
+      expect(workflow.connections['Webhook'].main[0][0].node).toBe('Auth Validate');
+
+      // Auth Validate → GET OPEN Escalations
+      expect(workflow.connections['Auth Validate']).toBeDefined();
+      expect(workflow.connections['Auth Validate'].main[0][0].node).toBe('GET OPEN Escalations');
+
       // GET OPEN Escalations → Check Escalations Exist
       expect(workflow.connections['GET OPEN Escalations']).toBeDefined();
 
@@ -248,6 +304,12 @@ describe('n8n Workflow Exports', () => {
       // Other nodes should also use X-API-Key
       expect(getConversation.parameters.headerParameters?.parameters).toBeDefined();
       expect(patchNotify.parameters.headerParameters?.parameters).toBeDefined();
+    });
+
+    it('should not contain hardcoded webhook URLs', () => {
+      const content = readFileSync(workflowPath, 'utf-8');
+      // Must not contain hardcoded localhost:5678 webhook paths
+      expect(content).not.toContain('localhost:5678/webhook');
     });
   });
 });
