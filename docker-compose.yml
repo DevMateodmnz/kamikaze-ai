@@ -38,6 +38,10 @@ services:
       - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
       - EXECUTIONS_DATA_SAVE_ON_PROGRESS=all
       - GENERIC_TIMEZONE=America/Argentina/Buenos_Aires
+      # Workflow variables (read by n8n nodes via $env)
+      - BACKEND_URL=${BACKEND_URL:-http://172.17.0.1:3000}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-change_me_to_a_secure_random_key}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
