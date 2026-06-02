@@ -39,7 +39,11 @@ Sends Discord webhook notifications when there are OPEN escalations:
 4. Marks escalation as NOTIFIED via `PATCH /api/v1/escalations/:id/notify`
 5. Outputs summary of notified escalations
 
+**Automated Import**: `./scripts/setup-pr008-n8n.sh` (imports workflow into running n8n)
+
 **CLI Validation**: `./scripts/validate-pr008.sh`
+
+**Note**: After import, you must toggle the workflow Active ON in the n8n UI to register the webhook. This is an intentional manual step — n8n's API activation does not reliably register production webhooks for webhook-triggered workflows.
 
 ## Importing Workflows
 

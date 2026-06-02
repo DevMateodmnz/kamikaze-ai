@@ -221,6 +221,25 @@ The Manual Trigger bypasses this check (it's only accessible from the n8n UI).
 
 ## Importing the Workflow
 
+### Automated Import
+
+```bash
+./scripts/setup-pr008-n8n.sh
+```
+
+This imports the workflow JSON into the running n8n instance via the official n8n CLI. After import, you must manually activate the workflow (see below).
+
+### Manual Activation (required after import)
+
+1. Open n8n at http://localhost:5678
+2. Find the workflow `008-escalation-discord-notification`
+3. **Toggle Active to ON** (top-right) to register the webhook endpoint
+4. The webhook is now available at `http://localhost:5678/webhook/pr008-escalation-discord`
+
+> **Why manual?** n8n's REST API activation does not reliably register production webhooks for webhook-triggered workflows. The UI toggle is the safest, most reliable activation method. Internal `/rest` endpoints and database patching were evaluated and rejected as too fragile.
+
+### Manual Import (alternative)
+
 1. Open n8n at http://localhost:5678
 2. Click "Import from File" (top-right menu)
 3. Select `n8n/workflows/008-escalation-discord-notification.json`

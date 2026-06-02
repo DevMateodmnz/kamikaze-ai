@@ -10,7 +10,13 @@ Verify that the `008-escalation-discord-notification` n8n workflow correctly:
 
 ## Quick CLI Validation (Recommended)
 
-Run the automated validation script:
+First, import the workflow into n8n (if not already done):
+
+```bash
+./scripts/setup-pr008-n8n.sh
+```
+
+Then activate it in the n8n UI (toggle Active ON), and run validation:
 
 ```bash
 ./scripts/validate-pr008.sh
