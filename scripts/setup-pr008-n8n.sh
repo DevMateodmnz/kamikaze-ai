@@ -14,7 +14,8 @@
 #   - Activate the workflow (that requires the n8n UI toggle)
 #
 # Usage:
-#   ./scripts/setup-pr008-n8n.sh
+#   ./scripts/setup-pr008-n8n.sh            # idempotent (skips if exists)
+#   ./scripts/setup-pr008-n8n.sh --force    # replace existing workflow
 #
 # Prerequisites:
 #   - n8n Docker container running at http://localhost:5678
@@ -42,7 +43,13 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 info()  { echo -e "       $1"; }
 step()  { echo -e "${BLUE}──▶${NC} $1"; }
 
-# Verify workflow JSON exists
+# ---- Parse flags --------------------------------------------
+FORCE=false
+if [[ "${1:-}" == "--force" ]] || [[ "${1:-}" == "--replace" ]]; then
+  FORCE=true
+fi
+
+# ---- Verify workflow JSON exists ----------------------------
 if [ ! -f "$WORKFLOW_JSON" ]; then
   fail "Workflow JSON not found at $WORKFLOW_JSON"
   exit 1
@@ -50,6 +57,7 @@ fi
 
 echo "============================================"
 echo " PR-008 n8n Workflow Import"
+[ "$FORCE" = true ] && echo " (--force: will replace existing)"
 echo "============================================"
 echo ""
 
@@ -81,9 +89,12 @@ else
 fi
 
 # ---- 4. Check if workflow already exists -------------------
-step "Checking for existing workflow..."
-EXISTING=$(docker exec "$CONTAINER" n8n export:workflow --all --output=/tmp/check-existing.json 2>/dev/null || true)
 EXISTING_COUNT=0
+if docker exec "$CONTAINER" test -f /tmp/check-existing.json 2>/dev/null; then
+  docker exec "$CONTAINER" rm -f /tmp/check-existing.json 2>/dev/null || true
+fi
+
+docker exec "$CONTAINER" n8n export:workflow --all --output=/tmp/check-existing.json 2>/dev/null || true
 
 if docker exec "$CONTAINER" test -f /tmp/check-existing.json 2>/dev/null; then
   EXISTING_COUNT=$(docker exec "$CONTAINER" python3 -c "
@@ -95,17 +106,36 @@ if isinstance(data, list):
 else:
     print(0)
 " 2>/dev/null || echo "0")
+  docker exec "$CONTAINER" rm -f /tmp/check-existing.json 2>/dev/null || true
 fi
 
-if [ "$EXISTING_COUNT" -gt 0 ] 2>/dev/null; then
+if [ "$EXISTING_COUNT" -gt 0 ] 2>/dev/null && [ "$FORCE" != true ]; then
   warn "Workflow '$WORKFLOW_NAME' already exists in n8n"
-  info "Skipping import. To reimport, delete it from n8n UI first."
-else
-  # ---- 5. Prepare and import workflow via CLI --------------
-  step "Importing workflow..."
+  info "Skipping import (use --force to replace)"
+  info ""
+  info "If you need to apply fixes to the workflow:"
+  info "  1. Delete it in n8n UI, OR"
+  info "  2. Run: ./scripts/setup-pr008-n8n.sh --force"
+  echo ""
+  echo -e " ${YELLOW}After (re)import:${NC}"
+  echo "  1. Open n8n: $N8N_URL"
+  echo "  2. Find workflow '$WORKFLOW_NAME'"
+  echo "  3. Toggle Active ON (re-publish if reimported)"
+  echo "  4. Run: ./scripts/validate-pr008.sh"
+  exit 0
+fi
 
-  # Prepare JSON: strip tags (avoids FK issues), add fresh ID
-  python3 -c "
+if [ "$EXISTING_COUNT" -gt 0 ] 2>/dev/null && [ "$FORCE" = true ]; then
+  step "Replacing existing workflow (--force)..."
+else
+  step "Importing workflow..."
+fi
+
+# ---- 5. Prepare JSON for import -----------------------------
+# Normalize Code node language to "javaScript" (n8n 2.22.5 casing requirement)
+# Strip tags to avoid FK issues on import
+# Assign fresh ID so n8n treats it as a new import
+python3 -c "
 import json, uuid
 with open('$WORKFLOW_JSON') as f:
     wf = json.load(f)
@@ -113,26 +143,30 @@ wf['id'] = str(uuid.uuid4()).replace('-', '')[:16]
 wf.pop('tags', None)
 wf.pop('createdAt', None)
 wf.pop('updatedAt', None)
+# Normalize Code node language to 'javaScript' (n8n 2.22.5 expects camelCase)
+for node in wf['nodes']:
+    if node['type'] == 'n8n-nodes-base.code':
+        if node['parameters'].get('language', '') != 'javaScript':
+            node['parameters']['language'] = 'javaScript'
 with open('/tmp/workflow-import-pr008.json', 'w') as out:
     json.dump(wf, out)
 " 2>/dev/null
 
-  docker cp /tmp/workflow-import-pr008.json "$CONTAINER":/tmp/workflow-import.json 2>&1 | grep -v "Successfully" || true
+docker cp /tmp/workflow-import-pr008.json "$CONTAINER":/tmp/workflow-import.json 2>&1 | grep -v "Successfully" || true
 
-  IMPORT_OUT=$(docker exec "$CONTAINER" n8n import:workflow --input=/tmp/workflow-import.json 2>&1)
-  if echo "$IMPORT_OUT" | grep -q "Successfully imported"; then
-    pass "Workflow imported successfully"
-  else
-    fail "Workflow import failed"
-    info "$IMPORT_OUT"
-    exit 1
-  fi
-
-  # Clean up temp file
-  rm -f /tmp/workflow-import-pr008.json
+IMPORT_OUT=$(docker exec "$CONTAINER" n8n import:workflow --input=/tmp/workflow-import.json 2>&1)
+if echo "$IMPORT_OUT" | grep -q "Successfully imported"; then
+  pass "Workflow imported successfully"
+else
+  fail "Workflow import failed"
+  info "$IMPORT_OUT"
+  exit 1
 fi
 
-# ---- 6. Remaining manual step ------------------------------
+# Clean up
+rm -f /tmp/workflow-import-pr008.json
+
+# ---- 6. Remaining manual steps ------------------------------
 echo ""
 echo "============================================"
 echo -e " ${GREEN}IMPORT COMPLETE${NC}"
@@ -140,7 +174,12 @@ echo "============================================"
 echo ""
 echo "  Workflow:  $WORKFLOW_NAME"
 echo ""
-echo -e " ${YELLOW}Manual step required:${NC} activate the workflow"
+
+if [ "$FORCE" = true ]; then
+  echo -e " ${YELLOW}After reimport, you must re-publish the workflow:${NC}"
+else
+  echo -e " ${YELLOW}Manual step required:${NC} activate the workflow"
+fi
 echo ""
 echo "  1. Open n8n:  $N8N_URL"
 echo "  2. Find workflow '$WORKFLOW_NAME'"

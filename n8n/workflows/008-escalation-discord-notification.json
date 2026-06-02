@@ -39,7 +39,7 @@
       ],
       "parameters": {
         "jsCode": "const headers = $input.item.json.headers || {};\nconst apiKey = headers['x-api-key'];\n\nif (!apiKey) {\n  throw new Error(JSON.stringify({ code: 'UNAUTHORIZED', message: 'Missing X-API-Key header' }));\n}\n\nif (apiKey !== $env.INTERNAL_API_KEY) {\n  throw new Error(JSON.stringify({ code: 'UNAUTHORIZED', message: 'Invalid X-API-Key' }));\n}\n\nreturn $input.item;",
-        "language": "javascript"
+        "language": "javaScript"
       }
     },
     {

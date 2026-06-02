@@ -166,7 +166,7 @@ describe('n8n Workflow Exports', () => {
       expect(authNode.parameters.jsCode).toContain("headers['x-api-key']");
       expect(authNode.parameters.jsCode).toContain('$env.INTERNAL_API_KEY');
       expect(authNode.parameters.jsCode).toContain('UNAUTHORIZED');
-      expect(authNode.parameters.language).toBe('javascript');
+      expect(authNode.parameters.language).toBe('javaScript');
 
       // Auth Validate must connect to GET OPEN Escalations
       expect(workflow.connections['Auth Validate']).toBeDefined();
