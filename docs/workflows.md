@@ -221,18 +221,6 @@ The Manual Trigger bypasses this check (it's only accessible from the n8n UI).
 
 ## Importing the Workflow
 
-### Automated (Recommended)
-
-```bash
-./scripts/setup-pr008-n8n.sh
-```
-
-This script imports, activates, and verifies the workflow automatically.
-
-**Note**: After the first automated setup, the webhook may need a one-time manual toggle: open the n8n UI, find the workflow, and toggle Active OFF then ON. This registers the production webhook URL.
-
-### Manual
-
 1. Open n8n at http://localhost:5678
 2. Click "Import from File" (top-right menu)
 3. Select `n8n/workflows/008-escalation-discord-notification.json`
