@@ -1,9 +1,11 @@
 /**
  * Security Service
  *
- * Placeholder service - NOT IMPLEMENTED
+ * Handles security concerns across the application:
+ * - API key authentication for internal endpoints
+ * - Webhook signature verification (WhatsApp)
  *
- * Will be implemented in Phase 1
+ * Phase 1 implementation
  */
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
@@ -12,29 +14,43 @@ import { AppError } from '../../utils/app-error.js';
 /**
  * Verify internal API key from n8n
  *
- * Usage: fastify.addHook('preHandler', verifyApiKey)
+ * Checks the X-API-Key header against INTERNAL_API_KEY env var.
+ * If the header is missing or doesn't match, throws an AppError.
  *
- * NOT IMPLEMENTED - throws in scaffold
+ * Usage: fastify.addHook('preHandler', verifyApiKey)
  */
 export async function verifyApiKey(
-  _request: FastifyRequest,
+  request: FastifyRequest,
   _reply: FastifyReply
 ): Promise<void> {
-  // For now, just pass through - will be implemented properly in Phase 1
-  // In Phase 1, this will check X-API-Key header against INTERNAL_API_KEY
+  const apiKey = request.headers['x-api-key'] as string | undefined;
+  const expectedKey = process.env.INTERNAL_API_KEY;
+
+  if (!expectedKey) {
+    throw new AppError('INTERNAL_API_KEY not configured', {
+      statusCode: 500,
+      code: 'SERVER_CONFIG_ERROR',
+    });
+  }
+
+  if (!apiKey) {
+    throw new AppError('Missing X-API-Key header', {
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+    });
+  }
+
+  if (apiKey !== expectedKey) {
+    throw new AppError('Invalid X-API-Key', {
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+    });
+  }
 }
 
 /**
- * Verify WhatsApp webhook signature
+ * Verify WhatsApp webhook signature (LIVE implementation)
  *
- * NOT IMPLEMENTED - throws in scaffold
+ * Replaces the scaffold. Delegates to the whatsapp-webhook module.
  */
-export async function verifyWebhookSignature(
-  _rawBody: Buffer,
-  _signature: string
-): Promise<boolean> {
-  throw new AppError('Webhook verification not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
-  });
-}
+export { verifyWebhookSignature } from './whatsapp-webhook.js';

@@ -636,6 +636,24 @@ All 52 lint warnings are about async functions without `await` expressions. This
 
 **Validation**: `validate-pr008.sh` all checks passed, `npm test` 142/142, Gmail SMTP acceptance confirmed, OPEN → NOTIFIED transition verified, duplicate prevention confirmed.
 
+### PR-010: WhatsApp Webhook Verification (Completed)
+
+**Date**: 2026-06-03
+
+**What was added**:
+- `backend/src/modules/security/whatsapp-webhook.ts` — HMAC-SHA256 signature verification (`verifyWebhookSignature`) and hub.challenge verification (`verifyHubChallenge`) for Meta WhatsApp Cloud API
+- `backend/src/modules/security/routes.ts` — GET `/api/v1/security/whatsapp/webhook` (hub.challenge handshake) + POST handler with raw body capture and HMAC validation
+- `backend/src/modules/security/service.ts` — Implemented `verifyApiKey()` for X-API-Key header checking; re-exports `verifyWebhookSignature`
+- `backend/tests/unit/whatsapp-webhook.test.ts` — 17 tests: valid/invalid signatures, tampered payloads, timing safety, Unicode payloads, hub.challenge edge cases
+
+**Security design**:
+- Raw body captured via scoped `preParsing` hook (only affects WhatsApp webhook path; no impact on other routes)
+- HMAC-SHA256 verification with timing-safe comparison (`crypto.timingSafeEqual`)
+- Zero external dependencies (Node.js `crypto` module)
+- Webhook disabled by default (`WHATSAPP_ENABLED=false`) — returns 503 until explicitly enabled
+
+**Validation**: `npm test` 159/159 passing (10 test files), `npm run build` clean.
+
 ### PR-004 and beyond: See Phase Roadmap
 
 *Last Updated: 2026-06-03*
