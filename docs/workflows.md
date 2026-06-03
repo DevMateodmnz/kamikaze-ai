@@ -130,13 +130,13 @@ It only validates that the backend API contract works end-to-end.
 
 ---
 
-# n8n Workflows — PR-008 Escalation Discord Notification
+# n8n Workflows — PR-008 Escalation Email Notification
 
-## Workflow: 008-escalation-discord-notification
+## Workflow: 008-escalation-email-notification
 
-**Purpose**: Fetch active escalations and send Discord webhook notifications to the team.
+**Purpose**: Fetch OPEN escalations and send email notifications via SMTP (Gmail-compatible) through the backend internal email endpoint.
 
-**File**: `n8n/workflows/008-escalation-discord-notification.json`
+**File**: `n8n/workflows/008-escalation-email-notification.json`
 
 ## Flow
 
@@ -151,43 +151,50 @@ GET /api/v1/escalations?status=OPEN → fetch OPEN escalations
     ↓
 Check Escalations Exist (IF node)
     ↓ (true branch)
-For Each Escalation
+Split Escalations (iterate each escalation)
     ↓
 GET /api/v1/conversations/:id → fetch customer phone and context
     ↓
-Format Discord Message → build rich embed with escalation details
+Format Email → construct HTML email with escalation details
     ↓
-POST Discord Webhook → send to team channel
+Send Email via SMTP → POST /api/v1/internal/send-email (backend nodemailer)
+    ↓
+Pass Escalation ID → extract from email response
     ↓
 PATCH /api/v1/escalations/:id/notify → mark as NOTIFIED
     ↓
 Output Summary
 ```
 
-## Discord Message Content
+## Core Invariant
 
-The notification includes:
-- **Escalation ID**: record ID
-- **Conversation ID**: conversation reference
-- **Customer Phone**: customer's WhatsApp number
-- **Reason**: escalation reason (e.g., `human_request`, `stock_confirmation_required`)
-- **Reason Detail**: additional context from decision engine
-- **Status**: current escalation status
-- **Created At**: timestamp of creation
+**Email delivery must succeed before the escalation is marked NOTIFIED.** If email delivery fails (non-2xx response), the workflow stops and the escalation remains OPEN for retry. The PATCH Mark Notified node only executes after a successful email send.
+
+## Email Content
+
+The email body is an HTML table with:
+- Escalation ID
+- Conversation ID
+- Customer Phone
+- Reason (e.g., `human_request`, `stock_confirmation_required`)
+- Reason Detail
+- Status
+- Created At (formatted in `es-AR` locale)
 
 ## Backend Endpoints Used
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/v1/escalations?status=OPEN` | GET | Fetch OPEN escalations only |
-| `/api/v1/conversations/:id` | GET | Fetch customer phone for notification |
-| `/api/v1/escalations/:id/notify` | PATCH | Mark escalation as NOTIFIED after Discord send |
+| `/api/v1/conversations/:id` | GET | Fetch customer phone and conversation context |
+| `/api/v1/internal/send-email` | POST | Send email via SMTP (nodemailer) |
+| `/api/v1/escalations/:id/notify` | PATCH | Mark escalation as NOTIFIED after successful email |
 
 ## Triggers
 
 | Trigger | Path / Method | Auth | Use Case |
 |---------|--------------|------|----------|
-| Webhook | `POST /webhook/pr008-escalation-discord` | `X-API-Key` header (checked against `$env.INTERNAL_API_KEY`) | CLI automation |
+| Webhook | `POST /webhook/pr008-escalation-email` | `X-API-Key` header (checked against `$env.INTERNAL_API_KEY`) | CLI automation |
 | Manual Trigger | n8n UI only | n8n login | UI testing |
 
 Both triggers feed into the same escalation notification logic.
@@ -202,7 +209,13 @@ Set these in n8n → Settings → Variables. They are also injected via docker-c
 |----------|-------|-------|
 | `BACKEND_URL` | `http://172.17.0.1:3000` | Docker bridge to host backend |
 | `INTERNAL_API_KEY` | value from `.env` | Auth header for backend AND webhook validation |
-| `DISCORD_WEBHOOK_URL` | `https://discord.com/api/webhooks/...` | Your Discord webhook URL |
+| `ESCALATION_EMAIL_TO` | recipient email address | Where escalation notifications are sent |
+| `ESCALATION_EMAIL_FROM` | sender email address | From: header for notifications |
+| `SMTP_HOST` | `smtp.gmail.com` | SMTP server hostname |
+| `SMTP_PORT` | `587` | SMTP port (587 for TLS, 465 for SSL) |
+| `SMTP_USER` | SMTP username | Usually the sender email address |
+| `SMTP_PASS` | SMTP password or App Password | Secret — never commit or print |
+| `SMTP_SECURE` | `false` | Set to `true` for port 465 (SSL) |
 
 ### Webhook Authentication
 
@@ -216,7 +229,7 @@ The Manual Trigger bypasses this check (it's only accessible from the n8n UI).
 ### Duplicate Prevention
 
 - `GET /escalations?status=OPEN` returns only OPEN escalations
-- After sending Discord, `PATCH /escalations/:id/notify` sets status=NOTIFIED
+- After successful email, `PATCH /escalations/:id/notify` sets status=NOTIFIED
 - Subsequent runs skip escalations already notified
 
 ## Importing the Workflow
@@ -232,9 +245,9 @@ This imports the workflow JSON into the running n8n instance via the official n8
 ### Manual Activation (required after import)
 
 1. Open n8n at http://localhost:5678
-2. Find the workflow `008-escalation-discord-notification`
+2. Find the workflow `008-escalation-email-notification`
 3. **Toggle Active to ON** (top-right) to register the webhook endpoint
-4. The webhook is now available at `http://localhost:5678/webhook/pr008-escalation-discord`
+4. The webhook is now available at `http://localhost:5678/webhook/pr008-escalation-email`
 
 > **Why manual?** n8n's REST API activation does not reliably register production webhooks for webhook-triggered workflows. The UI toggle is the safest, most reliable activation method. Internal `/rest` endpoints and database patching were evaluated and rejected as too fragile.
 
@@ -242,10 +255,10 @@ This imports the workflow JSON into the running n8n instance via the official n8
 
 1. Open n8n at http://localhost:5678
 2. Click "Import from File" (top-right menu)
-3. Select `n8n/workflows/008-escalation-discord-notification.json`
-4. Go to Settings → Variables → verify `BACKEND_URL`, `INTERNAL_API_KEY`, `DISCORD_WEBHOOK_URL`
+3. Select `n8n/workflows/008-escalation-email-notification.json`
+4. Go to Settings → Variables → verify `BACKEND_URL`, `INTERNAL_API_KEY`, and all SMTP vars
 5. **Toggle Active to ON** (top-right) to enable the webhook endpoint
-6. The webhook is now available at `http://localhost:5678/webhook/pr008-escalation-discord`
+6. The webhook is now available at `http://localhost:5678/webhook/pr008-escalation-email`
 
 ## CLI Validation
 
@@ -257,4 +270,4 @@ This script performs all validation steps automatically: health checks, test dat
 
 ## Manual Test
 
-See `docs/manual-tests/pr008-escalation-discord.md` for step-by-step test instructions.
+See `docs/manual-tests/pr008-escalation-email.md` for step-by-step test instructions.

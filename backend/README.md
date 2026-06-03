@@ -99,7 +99,7 @@ Deterministic keyword-based intent classification — no AI required.
 ### Escalation Reasons
 `human_request` | `stock_confirmation_required` | `price_confirmation_required` | `discount_requires_approval` | `warranty_policy_required` | `customer_expressed_dissatisfaction` | `unknown`
 
-**No external notification yet** — escalation records are created but Discord/Slack webhook not implemented.
+**Email notification via SMTP (PR-008)** — escalation records are notified via n8n workflow using Gmail-compatible SMTP through `POST /api/v1/internal/send-email`.
 
 ### Safety Rules
 - **NEVER** invent stock levels, prices, discounts, or warranty terms

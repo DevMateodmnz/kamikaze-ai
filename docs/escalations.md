@@ -1,10 +1,10 @@
-# Escalations — PR-007
+# Escalations — PR-007 / PR-008
 
 ## Overview
 
-Escalation records persist the human handoff data when `/messages/process` decides `action=escalate`. Discord webhook notification via n8n is now implemented.
+Escalation records persist the human handoff data when `/messages/process` decides `action=escalate`. Email notification via SMTP (Gmail-compatible) is now implemented through n8n workflow 008.
 
-**Status**: Implemented with n8n Discord notification
+**Status**: Implemented with n8n Email/SMTP notification (PR-008)
 
 ---
 
@@ -27,7 +27,7 @@ Customer Message → /messages/process → action=escalate
 | Status | Meaning |
 |--------|---------|
 | `OPEN` | Just created, awaiting agent attention |
-| `NOTIFIED` | Agent has been notified (no external notification yet — internal marker) |
+| `NOTIFIED` | Agent has been notified via email (SMTP) |
 | `IN_PROGRESS` | Agent is working on it |
 | `RESOLVED` | Handled and closed |
 | `CLOSED` | Fully closed (no further action) |
@@ -103,17 +103,26 @@ When called directly:
 | GET | `/api/v1/escalations/active` | List active escalations (OPEN/NOTIFIED/IN_PROGRESS) |
 | GET | `/api/v1/escalations/:id` | Get single escalation |
 | PATCH | `/api/v1/escalations/:id/status` | Update status |
-| PATCH | `/api/v1/escalations/:id/notify` | Mark as notified (internal — no external notification) |
+| PATCH | `/api/v1/escalations/:id/notify` | Mark as notified (called by n8n after successful email send) |
 | PATCH | `/api/v1/escalations/:id/resolve` | Resolve with metadata |
 | POST | `/api/v1/conversations/:id/escalate` | Create escalation for conversation |
 
 ---
 
-## No External Notification Yet
+## Email Notification (n8n Workflow 008)
 
-The `/escalations/:id/notify` endpoint only sets `notifiedAt` timestamp and `status=NOTIFIED`. It does NOT send Discord/Slack/email/Telegram notifications.
+The `008-escalation-email-notification` workflow handles external notification:
 
-**Next step**: Implement Discord webhook notification via n8n or backend.
+1. n8n workflow fetches OPEN escalations via `GET /escalations?status=OPEN`
+2. For each escalation: fetches conversation context, formats an HTML email, sends via SMTP through `POST /api/v1/internal/send-email`
+3. On successful email delivery, n8n calls `PATCH /escalations/:id/notify` to set `status=NOTIFIED` and record `notifiedAt`
+4. If email delivery fails, the escalation remains OPEN and is retryable
+
+**Core invariant**: An escalation is marked NOTIFIED only after email delivery succeeds. If the email fails, the escalation stays OPEN.
+
+The backend internal endpoint (`POST /api/v1/internal/send-email`) uses nodemailer with provider-agnostic SMTP configuration. It has been validated with Gmail SMTP.
+
+See `docs/workflows.md` and `docs/manual-tests/pr008-escalation-email.md` for workflow details and test instructions.
 
 ---
 
@@ -126,4 +135,4 @@ When `/messages/process` receives a duplicate `whatsappMessageId`:
 
 ---
 
-*Last Updated: 2026-05-29*
+*Last Updated: 2026-06-03*

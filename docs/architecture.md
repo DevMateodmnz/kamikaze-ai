@@ -52,7 +52,8 @@ n8n handles:
 - Calling backend REST API
 - Sending WhatsApp replies
 - Routing to escalation workflows
-- Future: Gmail, Slack, Discord, Telegram, CRM integrations
+- Sending escalation email notifications via SMTP (Gmail-compatible)
+- Future optional: Slack, Discord, Telegram, CRM integrations
 
 n8n does NOT:
 - Call AI providers directly
@@ -270,14 +271,14 @@ BusinessRule (standalone)
 | 001-inbound-whatsapp | Receive WhatsApp webhook, normalize, call backend |
 | 002-process-message | Call backend /inbound endpoint, route response |
 | 003-send-reply | Send WhatsApp reply via Cloud API |
-| 004-escalation | Notify human via Discord/Slack |
+| 004-escalation | Notify human via email (SMTP/Gmail) |
 | 005-error-handler | Log errors, retry, alert |
 
 ### 6.2 Credential Management
 
 - WhatsApp credentials → n8n credential store
 - Backend API key → `X-API-Key` header in HTTP Request nodes
-- Discord webhook → n8n credential store
+- SMTP credentials → backend environment variables (never exposed to n8n directly)
 - **Workflow exports must NOT contain actual credentials**
 
 ---
@@ -297,25 +298,18 @@ BusinessRule (standalone)
 | `ready_to_buy` | High-intent customer needs final push |
 | `technical_uncertainty` | Compatibility or spec question AI can't answer |
 
-### 7.2 MVP Implementation
+### 7.2 Implemented Solution
 
-Discord webhook to a private team channel.
+Email notification via SMTP (Gmail-compatible) through n8n workflow 008-escalation-email-notification. The n8n workflow fetches OPEN escalations, formats an HTML email, sends it via the backend internal email endpoint (`POST /api/v1/internal/send-email`), and marks the escalation as NOTIFIED only after successful delivery.
 
-**Notification payload:**
-```
-Customer: +54 9 381 xxx xxxx
-Reason: low_confidence
-Conversation: [last 5 messages]
-Suggested Reply: "Contale que tenemos MTB en stock..."
-Link: backend/admin/conversations/{id}
-```
+Notifications include: escalation ID, conversation ID, customer phone, reason, reason detail, status, and creation timestamp.
 
-### 7.3 Future Phases
+### 7.3 Future Optional Channels
 
-- Reply-from-Discord to customer
-- Telegram/Slack alternative channels
+- Telegram/Slack/Discord alternative channels
 - SMS fallback
 - CRM integration for lead assignment
+- Reply-from-notification to customer
 
 ---
 
@@ -358,19 +352,19 @@ All secrets via environment variables. `.env` gitignored. Production uses Docker
 | **Phase 1** | Messages module, customers, conversations, intent detection, simulated WhatsApp |
 | **Phase 2** | Knowledge base with store information |
 | **Phase 3** | AI Gateway, MiniMax adapter, guardrails, AI replies |
-| **Phase 4** | Real WhatsApp webhook, Discord escalation, human resolution |
+| **Phase 4** | Real WhatsApp webhook, email escalation (PR-008), human resolution |
 
 ---
 
 ## 10. Open Questions
 
 1. WhatsApp Business account access — who has it?
-2. Escalation channel — Discord confirmed?
+2. Escalation channel — Email/SMTP confirmed (Gmail-compatible); Discord/Slack optional future.
 3. Store info verification — who confirms addresses/hours?
 4. AI provider key — MiniMax or OpenAI preferred?
 5. Product data import — manual CSV initially?
 6. Session definition — continuous WhatsApp thread or 7-day window?
-7. Escalation urgency — Discord push sufficient?
+7. Escalation urgency — Email delivery sufficient for current needs; future push channels optional.
 
 ---
 
@@ -608,21 +602,40 @@ All 52 lint warnings are about async functions without `await` expressions. This
 
 **Escalation statuses**: OPEN → NOTIFIED → IN_PROGRESS → RESOLVED → CLOSED
 
-**No external notification yet** — escalation records are created and can be queried, but Discord/Slack webhook not implemented. The `/escalations/:id/notify` endpoint is internal only.
+**External notification now implemented in PR-008** — email notification via SMTP (Gmail-compatible) through n8n workflow. The `/escalations/:id/notify` endpoint is called by n8n after successful email send.
 
 **API endpoints added**:
 - GET /api/v1/escalations (list, filter by status)
 - GET /api/v1/escalations/active
 - GET /api/v1/escalations/:id
 - PATCH /api/v1/escalations/:id/status
-- PATCH /api/v1/escalations/:id/notify (internal marker — no external notification)
+- PATCH /api/v1/escalations/:id/notify (called by n8n after successful email send)
 - PATCH /api/v1/escalations/:id/resolve
 - POST /api/v1/conversations/:id/escalate (manual escalation)
 
 **Duplicate behavior**: Duplicates do not create duplicate escalation records.
 
-**Next step**: Implement Discord webhook notification via n8n or backend.
+**Next step (completed in PR-008)**: Email notification via SMTP (Gmail-compatible) through n8n workflow.
+
+### PR-008: Email Escalation Notification (Completed)
+
+**Date**: 2026-06-03
+
+**What was added**:
+- `backend/src/routes/api/internal.ts` — Internal email endpoint `POST /api/v1/internal/send-email` using nodemailer with provider-agnostic SMTP configuration
+- `n8n/workflows/008-escalation-email-notification.json` — n8n workflow: Webhook → Auth Validate → GET OPEN Escalations → Split Escalations → GET Conversation Context → Format Email → Send Email via SMTP → PATCH Mark Notified → Output Summary
+- `scripts/setup-pr008-n8n.sh` — Automated n8n workflow import
+- `scripts/validate-pr008.sh` — End-to-end CLI validation (creates test data, triggers webhook, verifies status transition and duplicate prevention)
+- `docs/manual-tests/pr008-escalation-email.md` — Step-by-step manual test guide
+
+**Removed**: Discord webhook workflow and docs (`008-escalation-discord-notification.json`, `pr008-escalation-discord.md`).
+
+**Core invariant**: Escalation is marked NOTIFIED only after successful email delivery. If email fails, escalation remains OPEN.
+
+**SMTP configuration**: Provider-agnostic (Gmail, SendGrid, Mailgun, etc.) via environment variables: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `ESCALATION_EMAIL_TO`, `ESCALATION_EMAIL_FROM`.
+
+**Validation**: `validate-pr008.sh` all checks passed, `npm test` 142/142, Gmail SMTP acceptance confirmed, OPEN → NOTIFIED transition verified, duplicate prevention confirmed.
 
 ### PR-004 and beyond: See Phase Roadmap
 
-*Last Updated: 2026-05-29*
+*Last Updated: 2026-06-03*

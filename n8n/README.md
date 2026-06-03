@@ -7,14 +7,12 @@ This directory contains exported JSON files for n8n workflows.
 | File | Purpose | Status |
 |------|---------|--------|
 | `004b-simulated-message-flow.json` | End-to-end API validation without real WhatsApp or AI | ✅ Implemented |
-| `008-escalation-discord-notification.json` | Discord webhook notification for active escalations | ✅ Implemented |
+| `008-escalation-email-notification.json` | Email/SMTP notification for OPEN escalations | ✅ Implemented |
 | `README.md` | This file | ✅ |
 
 ## PR-004B: Simulated Message Flow
 
 See [docs/workflows.md](../docs/workflows.md) for detailed documentation.
-
-## PR-004B: Simulated Message Flow
 
 The simulated workflow validates the full backend API contract:
 1. Simulates a WhatsApp-like inbound message (no real WhatsApp)
@@ -24,20 +22,22 @@ The simulated workflow validates the full backend API contract:
 5. Verifies conversation state via `GET /api/v1/conversations/:id`
 6. Returns structured summary
 
-## PR-008: Escalation Discord Notification
+## PR-008: Escalation Email Notification
 
-Sends Discord webhook notifications when there are OPEN escalations:
+Sends email notifications via SMTP (Gmail-compatible) when there are OPEN escalations:
 
 **Triggers**:
-- **Webhook**: `POST /webhook/pr008-escalation-discord` (CLI automation, requires `X-API-Key` header)
+- **Webhook**: `POST /webhook/pr008-escalation-email` (CLI automation, requires `X-API-Key` header)
 - **Manual Trigger**: n8n UI testing
 
 **Flow**:
 1. Webhook trigger with `X-API-Key` validation (rejects unauthenticated requests)
 2. Fetches OPEN escalations via `GET /api/v1/escalations?status=OPEN`
-3. For each escalation: fetches conversation context, formats Discord message, sends webhook
-4. Marks escalation as NOTIFIED via `PATCH /api/v1/escalations/:id/notify`
-5. Outputs summary of notified escalations
+3. For each escalation: fetches conversation context, formats HTML email, sends via SMTP through backend internal endpoint `POST /api/v1/internal/send-email`
+4. Marks escalation as NOTIFIED via `PATCH /api/v1/escalations/:id/notify` only after successful email delivery
+5. Outputs summary
+
+**Core invariant**: Escalation is marked NOTIFIED only after email delivery succeeds. If email fails, escalation remains OPEN for retry.
 
 **Automated Import**: `./scripts/setup-pr008-n8n.sh` (imports workflow into running n8n)
 
@@ -57,6 +57,6 @@ Sends Discord webhook notifications when there are OPEN escalations:
 | File | Purpose | Notes |
 |------|---------|-------|
 | `004b-simulated-message-flow.json` | API contract validation | Uses localhost backend, no real WhatsApp |
-| `008-escalation-discord-notification.json` | Escalation Discord notification | Sends webhook for OPEN escalations |
+| `008-escalation-email-notification.json` | Escalation email notification | Sends email for OPEN escalations via SMTP |
 
 *Full WhatsApp + AI workflow implementation in later phases.*
