@@ -121,8 +121,8 @@ describe('n8n Workflow Exports', () => {
     });
   });
 
-  describe('008-escalation-discord-notification.json', () => {
-    const workflowPath = resolve(__dirname, '../../../n8n/workflows/008-escalation-discord-notification.json');
+  describe('008-escalation-email-notification.json', () => {
+    const workflowPath = resolve(__dirname, '../../../n8n/workflows/008-escalation-email-notification.json');
 
     it('should be valid JSON', () => {
       const content = readFileSync(workflowPath, 'utf-8');
@@ -138,10 +138,11 @@ describe('n8n Workflow Exports', () => {
       expect(nodeNames).toContain('Auth Validate');
       expect(nodeNames).toContain('GET OPEN Escalations');
       expect(nodeNames).toContain('Check Escalations Exist');
-      expect(nodeNames).toContain('For Each Escalation');
+      expect(nodeNames).toContain('Split Escalations');
       expect(nodeNames).toContain('GET Conversation Context');
-      expect(nodeNames).toContain('Format Discord Message');
-      expect(nodeNames).toContain('POST Discord Webhook');
+      expect(nodeNames).toContain('Format Email');
+      expect(nodeNames).toContain('Send Email via SMTP');
+      expect(nodeNames).toContain('Pass Escalation ID');
       expect(nodeNames).toContain('PATCH Mark Notified');
       expect(nodeNames).toContain('Output Summary');
     });
@@ -153,7 +154,7 @@ describe('n8n Workflow Exports', () => {
       expect(node).toBeDefined();
       expect(node.type).toBe('n8n-nodes-base.webhook');
       expect(node.parameters.httpMethod).toBe('POST');
-      expect(node.parameters.path).toBe('pr008-escalation-discord');
+      expect(node.parameters.path).toBe('pr008-escalation-email');
       expect(node.parameters.responseMode).toBe('lastNode');
     });
 
@@ -177,7 +178,7 @@ describe('n8n Workflow Exports', () => {
       expect(workflow.connections['Webhook'].main[0][0].node).toBe('Auth Validate');
     });
 
-    it('should validate X-API-Key before any backend or Discord call', () => {
+    it('should validate X-API-Key before any backend or email call', () => {
       const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
       const authNode = workflow.nodes.find((n: { name: string }) => n.name === 'Auth Validate');
 
@@ -209,37 +210,62 @@ describe('n8n Workflow Exports', () => {
       expect(node.parameters.method).toBe('PATCH');
     });
 
-    it('should use Discord webhook via environment variable', () => {
+    it('should have Format Email Code node that produces subject and bodyHtml', () => {
       const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
-      const node = workflow.nodes.find((n: { name: string }) => n.name === 'POST Discord Webhook');
-      expect(node.parameters.url).toContain('DISCORD_WEBHOOK_URL');
+      const node = workflow.nodes.find((n: { name: string }) => n.name === 'Format Email');
+
+      expect(node).toBeDefined();
+      expect(node.type).toBe('n8n-nodes-base.code');
+      expect(node.parameters.language).toBe('javaScript');
+
+      const code = node.parameters.jsCode;
+      expect(code).toContain('subject');
+      expect(code).toContain('bodyHtml');
+      expect(code).toContain('<h2>');
+      expect(code).toContain('Escalamiento');
+      expect(code).toContain('KamiKaze Bikes');
     });
 
-    it('should NOT continue on Discord webhook failure', () => {
+    it('should have Send Email via SMTP HTTP Request node calling backend endpoint', () => {
       const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
-      const node = workflow.nodes.find((n: { name: string }) => n.name === 'POST Discord Webhook');
+      const node = workflow.nodes.find((n: { name: string }) => n.name === 'Send Email via SMTP');
 
-      // continueOnFail must be false (or absent) — failed Discord must block PATCH Mark Notified
+      expect(node).toBeDefined();
+      expect(node.type).toBe('n8n-nodes-base.httpRequest');
+      expect(node.parameters.method).toBe('POST');
+      expect(node.parameters.url).toContain('/api/v1/internal/send-email');
+    });
+
+    it('should NOT continue on email send failure', () => {
+      const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
+      const node = workflow.nodes.find((n: { name: string }) => n.name === 'Send Email via SMTP');
+
+      // continueOnFail must be false — failed email must block PATCH Mark Notified
       expect(node.continueOnFail).not.toBe(true);
     });
 
-    it('should have PATCH Mark Notified after POST Discord Webhook', () => {
+    it('should have PATCH Mark Notified after Pass Escalation ID (which follows email)', () => {
       const workflow = JSON.parse(readFileSync(workflowPath, 'utf-8'));
-      const discordNode = workflow.nodes.find((n: { name: string }) => n.name === 'POST Discord Webhook');
+      const passNode = workflow.nodes.find((n: { name: string }) => n.name === 'Pass Escalation ID');
 
-      // Discord node must NOT have continueOnFail=true (tested above)
-      // PATCH Mark Notified must only run after successful Discord POST
-      expect(workflow.connections['POST Discord Webhook']).toBeDefined();
-      expect(workflow.connections['POST Discord Webhook'].main[0][0].node).toBe('PATCH Mark Notified');
+      expect(workflow.connections['Pass Escalation ID']).toBeDefined();
+      expect(workflow.connections['Pass Escalation ID'].main[0][0].node).toBe('PATCH Mark Notified');
     });
 
-    it('should not contain hardcoded Discord webhook URL', () => {
+    it('should not contain hardcoded SMTP credentials or email addresses', () => {
       const content = readFileSync(workflowPath, 'utf-8');
-      // Should use env variable placeholder, not real URL
-      expect(content).not.toContain('discord.com/api/webhooks/');
-      expect(content).not.toContain('https://discord');
-      // Should reference env variable
-      expect(content).toContain('$env.DISCORD_WEBHOOK_URL');
+      // SMTP is handled by backend, not n8n — should not have SMTP env refs in workflow
+      expect(content).not.toContain('devmateodmnz@gmail.com');
+      expect(content).not.toContain('smtp.gmail.com');
+      // n8n workflow delegates email to backend endpoint
+      expect(content).toContain('/api/v1/internal/send-email');
+    });
+
+    it('should not contain Discord references', () => {
+      const content = readFileSync(workflowPath, 'utf-8');
+      expect(content).not.toContain('discord');
+      expect(content).not.toContain('DISCORD_WEBHOOK_URL');
+      expect(content).not.toContain('Discord');
     });
 
     it('should not contain real credentials', () => {
@@ -283,28 +309,33 @@ describe('n8n Workflow Exports', () => {
       // GET OPEN Escalations → Check Escalations Exist
       expect(workflow.connections['GET OPEN Escalations']).toBeDefined();
 
-      // Check Escalations Exist → For Each Escalation (true branch)
+      // Check Escalations Exist → Split Escalations (true branch)
       expect(workflow.connections['Check Escalations Exist']).toBeDefined();
-      expect(workflow.connections['Check Escalations Exist'].main[0][0].node).toBe('For Each Escalation');
+      expect(workflow.connections['Check Escalations Exist'].main[0][0].node).toBe('Split Escalations');
 
-      // For Each Escalation → GET Conversation Context
-      expect(workflow.connections['For Each Escalation']).toBeDefined();
-      expect(workflow.connections['For Each Escalation'].main[0][0].node).toBe('GET Conversation Context');
+      // Split Escalations → GET Conversation Context
+      expect(workflow.connections['Split Escalations']).toBeDefined();
+      expect(workflow.connections['Split Escalations'].main[0][0].node).toBe('GET Conversation Context');
 
-      // GET Conversation Context → Format Discord Message
+      // GET Conversation Context → Format Email
       expect(workflow.connections['GET Conversation Context']).toBeDefined();
-      expect(workflow.connections['GET Conversation Context'].main[0][0].node).toBe('Format Discord Message');
+      expect(workflow.connections['GET Conversation Context'].main[0][0].node).toBe('Format Email');
 
-      // Format Discord Message → POST Discord Webhook
-      expect(workflow.connections['Format Discord Message']).toBeDefined();
-      expect(workflow.connections['Format Discord Message'].main[0][0].node).toBe('POST Discord Webhook');
+      // Format Email → Send Email via SMTP
+      expect(workflow.connections['Format Email']).toBeDefined();
+      expect(workflow.connections['Format Email'].main[0][0].node).toBe('Send Email via SMTP');
 
-      // POST Discord Webhook → PATCH Mark Notified
-      expect(workflow.connections['POST Discord Webhook']).toBeDefined();
-      expect(workflow.connections['POST Discord Webhook'].main[0][0].node).toBe('PATCH Mark Notified');
+      // Send Email via SMTP → Pass Escalation ID
+      expect(workflow.connections['Send Email via SMTP']).toBeDefined();
+      expect(workflow.connections['Send Email via SMTP'].main[0][0].node).toBe('Pass Escalation ID');
 
-      // PATCH Mark Notified → back to For Each Escalation (loop)
+      // Pass Escalation ID → PATCH Mark Notified
+      expect(workflow.connections['Pass Escalation ID']).toBeDefined();
+      expect(workflow.connections['Pass Escalation ID'].main[0][0].node).toBe('PATCH Mark Notified');
+
+      // PATCH Mark Notified → Output Summary
       expect(workflow.connections['PATCH Mark Notified']).toBeDefined();
+      expect(workflow.connections['PATCH Mark Notified'].main[0][0].node).toBe('Output Summary');
     });
 
     it('should include X-API-Key header in HTTP calls', () => {

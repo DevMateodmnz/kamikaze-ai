@@ -2,7 +2,7 @@
 # ============================================================
 # setup-pr008-n8n.sh — Import PR-008 workflow into n8n
 # ============================================================
-# Imports the 008-escalation-discord-notification workflow
+# Imports the 008-escalation-email-notification workflow
 # into a running n8n instance via the official n8n CLI.
 #
 # This script does NOT:
@@ -26,8 +26,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-WORKFLOW_JSON="$PROJECT_DIR/n8n/workflows/008-escalation-discord-notification.json"
-WORKFLOW_NAME="008-escalation-discord-notification"
+WORKFLOW_JSON="$PROJECT_DIR/n8n/workflows/008-escalation-email-notification.json"
+WORKFLOW_NAME="008-escalation-email-notification"
 N8N_URL="${N8N_URL:-http://localhost:5678}"
 CONTAINER="kamikaze-n8n"
 

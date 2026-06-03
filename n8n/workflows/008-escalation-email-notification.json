@@ -1,0 +1,237 @@
+{
+  "name": "008-escalation-email-notification",
+  "nodes": [
+    {
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [100, 150],
+      "parameters": {}
+    },
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 450],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pr008-escalation-email",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "auth-validate",
+      "name": "Auth Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [340, 450],
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst apiKey = headers['x-api-key'];\n\nif (!apiKey) {\n  throw new Error(JSON.stringify({ code: 'UNAUTHORIZED', message: 'Missing X-API-Key header' }));\n}\n\nif (apiKey !== $env.INTERNAL_API_KEY) {\n  throw new Error(JSON.stringify({ code: 'UNAUTHORIZED', message: 'Invalid X-API-Key' }));\n}\n\nreturn $input.item;",
+        "language": "javaScript"
+      }
+    },
+    {
+      "id": "fetch-active-escalations",
+      "name": "GET OPEN Escalations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [340, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL }}/api/v1/escalations?status=OPEN",
+        "options": { "timeout": 10000 },
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.INTERNAL_API_KEY }}" }
+          ]
+        }
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "check-escalations",
+      "name": "Check Escalations Exist",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [580, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "count-check",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "split-escalations",
+      "name": "Split Escalations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300],
+      "parameters": {
+        "jsCode": "const items = $input.item.json.escalations || [];\nif (items.length === 0) {\n  return [];\n}\nreturn items.map(item => ({ json: item }));",
+        "language": "javaScript"
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "fetch-conversation-context",
+      "name": "GET Conversation Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [940, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL }}/api/v1/conversations/{{ $json.conversationId }}",
+        "options": { "timeout": 5000 },
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.INTERNAL_API_KEY }}" }
+          ]
+        }
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "format-email",
+      "name": "Format Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 300],
+      "parameters": {
+        "jsCode": "// Get conversation data from current input (GET Conversation Context output)\nconst conversation = $input.item.json || {};\nconst customerPhone = conversation.customerPhone || 'N/A';\n\n// Get escalation data from Split Escalations using current item index\nconst splitItems = $items('Split Escalations');\nconst idx = ($itemIndex != null && typeof $itemIndex === 'number') ? $itemIndex : 0;\nconst escalation = (splitItems && idx < splitItems.length) ? splitItems[idx].json : {};\n\nconst escalationId = escalation.id || '';\nconst subject = '\\u{1F6A8} Nuevo Escalamiento - KamiKaze Bikes [#' + (escalationId || '?') + ']';\n\nconst bodyHtml = '<h2>\\u{1F6A8} Nuevo Escalamiento &mdash; KamiKaze Bikes</h2>' +\n  '<table border=\"0\" cellpadding=\"4\" style=\"border-collapse: collapse;\">' +\n  '<tr><td><strong>ID Escalamiento:</strong></td><td><code>' + (escalationId || '?') + '</code></td></tr>' +\n  '<tr><td><strong>ID Conversaci\\u00f3n:</strong></td><td><code>' + (escalation.conversationId || conversation.id || '?') + '</code></td></tr>' +\n  '<tr><td><strong>Cliente:</strong></td><td>' + customerPhone + '</td></tr>' +\n  '<tr><td><strong>Raz\\u00f3n:</strong></td><td><code>' + (escalation.reason || '?') + '</code></td></tr>' +\n  '<tr><td><strong>Detalle:</strong></td><td>' + (escalation.reasonDetail || 'N/A') + '</code></td></tr>' +\n  '<tr><td><strong>Estado:</strong></td><td><code>' + (escalation.status || '?') + '</code></td></tr>' +\n  '<tr><td><strong>Creado:</strong></td><td>' + (escalation.createdAt ? new Date(escalation.createdAt).toLocaleString('es-AR') : '?') + '</td></tr>' +\n  '</table>' +\n  '<p>\\u{1F4CB} <strong>Resumen:</strong> Un cliente necesita atenci\\u00f3n humana. Revisar la conversaci\\u00f3n en el panel de administraci\\u00f3n.</p>';\n\nreturn { json: { subject: subject, bodyHtml: bodyHtml, escalationId: escalationId } };",
+        "language": "javaScript"
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "send-email-smtp",
+      "name": "Send Email via SMTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1420, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/v1/internal/send-email",
+        "options": { "timeout": 15000 },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "escalationId", "value": "={{ $json.escalationId }}" },
+            { "name": "subject", "value": "={{ $json.subject }}" },
+            { "name": "bodyHtml", "value": "={{ $json.bodyHtml }}" }
+          ]
+        },
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.INTERNAL_API_KEY }}" }
+          ]
+        }
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "mark-escalation-notified",
+      "name": "PATCH Mark Notified",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1900, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.BACKEND_URL }}/api/v1/escalations/{{ $json.escalationId }}/notify",
+        "options": { "timeout": 5000 },
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.INTERNAL_API_KEY }}" }
+          ]
+        },
+        "bodyParameters": { "parameters": [] }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "pass-escalation-id",
+      "name": "Pass Escalation ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1660, 300],
+      "parameters": {
+        "jsCode": "// Send Email response already carries escalationId\nconst escalationId = $input.item.json.escalationId || '';\nreturn { json: { escalationId: escalationId } };",
+        "language": "javaScript"
+      },
+      "continueOnFail": false
+    },
+    {
+      "id": "output-summary",
+      "name": "Output Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1900, 300],
+      "parameters": {
+        "jsCode": "return { json: { workflow: '008-escalation-email-notification', status: 'completed', note: 'Workflow finished. Check n8n execution history for details.' } };",
+        "language": "javaScript"
+      },
+      "continueOnFail": false
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "GET OPEN Escalations", "type": "main", "index": 0 }]]
+    },
+    "Webhook": {
+      "main": [[{ "node": "Auth Validate", "type": "main", "index": 0 }]]
+    },
+    "Auth Validate": {
+      "main": [[{ "node": "GET OPEN Escalations", "type": "main", "index": 0 }]]
+    },
+    "GET OPEN Escalations": {
+      "main": [[{ "node": "Check Escalations Exist", "type": "main", "index": 0 }]]
+    },
+    "Check Escalations Exist": {
+      "main": [
+        [{ "node": "Split Escalations", "type": "main", "index": 0 }],
+        [{ "node": "Output Summary", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split Escalations": {
+      "main": [[{ "node": "GET Conversation Context", "type": "main", "index": 0 }]]
+    },
+    "GET Conversation Context": {
+      "main": [[{ "node": "Format Email", "type": "main", "index": 0 }]]
+    },
+    "Format Email": {
+      "main": [[{ "node": "Send Email via SMTP", "type": "main", "index": 0 }]]
+    },
+    "Send Email via SMTP": {
+      "main": [[{ "node": "Pass Escalation ID", "type": "main", "index": 0 }]]
+    },
+    "Pass Escalation ID": {
+      "main": [[{ "node": "PATCH Mark Notified", "type": "main", "index": 0 }]]
+    },
+    "PATCH Mark Notified": {
+      "main": [[{ "node": "Output Summary", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "sequential" },
+  "staticData": null,
+  "tags": ["escalation", "email", "notification", "kamikaze-bikes"],
+  "meta": { "templateCredsSetup": false, "templateId": null, "versionId": null },
+  "triggerCount": 2,
+  "updatedAt": "2026-06-03T00:00:00.000Z",
+  "versionId": "008-v4-simplified"
+}

@@ -2,7 +2,7 @@
 # ============================================================
 # validate-pr008.sh — CLI validation for PR-008
 # ============================================================
-# Validates the n8n escalation Discord notification workflow
+# Validates the n8n escalation email notification workflow
 # without opening the n8n UI.
 #
 # Usage:
@@ -11,8 +11,8 @@
 # Prerequisites:
 #   - Backend running on http://localhost:3000
 #   - n8n running on http://localhost:5678
-#   - Workflow 008-escalation-discord-notification imported and ACTIVE in n8n
-#   - .env file with INTERNAL_API_KEY, DISCORD_WEBHOOK_URL, BACKEND_URL
+#   - Workflow 008-escalation-email-notification imported and ACTIVE in n8n
+#   - .env file with INTERNAL_API_KEY, BACKEND_URL, and SMTP vars
 # ============================================================
 
 set -euo pipefail
@@ -30,7 +30,7 @@ N8N_URL="${N8N_URL:-http://localhost:5678}"
 # workflows share the same webhook node path. Try the simple
 # path first, then fall back to workflow-ID-prefixed format.
 discover_webhook_url() {
-  local simple_url="$N8N_URL/webhook/pr008-escalation-discord"
+  local simple_url="$N8N_URL/webhook/pr008-escalation-email"
 
   # Quick check: does simple URL work?
   local test_code
@@ -48,12 +48,12 @@ discover_webhook_url() {
   wf_id=$(docker exec kamikaze-postgres psql -U kamikaze -d kamikaze_db -t -c \
     "SELECT we.id FROM workflow_entity we
      JOIN webhook_entity wh ON wh.\"workflowId\" = we.id
-     WHERE we.name = '008-escalation-discord-notification'
+     WHERE we.name = '008-escalation-email-notification'
        AND we.active = true
      LIMIT 1;" 2>/dev/null | tr -d '[:space:]')
 
   if [ -n "$wf_id" ]; then
-    local full_url="$N8N_URL/webhook/${wf_id}/webhook/pr008-escalation-discord"
+    local full_url="$N8N_URL/webhook/${wf_id}/webhook/pr008-escalation-email"
     info "Webhook registered at: $full_url"
     echo "$full_url"
     return 0
@@ -87,7 +87,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "============================================"
-echo " PR-008 CLI Validation"
+echo " PR-008 CLI Validation (Email)"
 echo "============================================"
 echo ""
 
@@ -97,10 +97,17 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-set -a
-# shellcheck source=/dev/null
-source "$ENV_FILE"
-set +a
+# Parse .env safely — handles values with spaces (e.g., App Passwords)
+# without using 'source' which would break on unquoted space-containing values.
+while IFS= read -r line; do
+  # Skip comments and empty lines
+  [[ "$line" =~ ^[[:space:]]*# ]] && continue
+  [[ -z "$line" ]] && continue
+  # Extract key=value (value may contain spaces, equals, etc.)
+  if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+    export "${BASH_REMATCH[1]}"="${BASH_REMATCH[2]}"
+  fi
+done < "$ENV_FILE"
 
 # ---- 2. Check required tools --------------------------------
 for cmd in curl jq; do
@@ -112,22 +119,49 @@ done
 pass "Required tools: curl, jq"
 
 # ---- 3. Verify required env vars (no values printed) ---------
-for var in BACKEND_URL INTERNAL_API_KEY DISCORD_WEBHOOK_URL; do
+# Backend vars
+for var in BACKEND_URL INTERNAL_API_KEY; do
   if [ -z "${!var:-}" ]; then
     fail "Env var $var is missing"
     exit 1
   fi
 done
-pass "Env vars: BACKEND_URL, INTERNAL_API_KEY, DISCORD_WEBHOOK_URL (all present)"
 
-# ---- 3b. Validate Discord webhook URL (no placeholder) ---------
-if echo "$DISCORD_WEBHOOK_URL" | grep -qiE "REPLACE|example|placeholder|discord\.com/api/webhooks/$"; then
-  fail "DISCORD_WEBHOOK_URL appears to be a placeholder"
-  info "Set a real Discord webhook URL in .env for full validation."
-  info "Get one from: Discord Server Settings → Integrations → Webhooks → New Webhook"
+# Email/SMTP vars (all required)
+for var in ESCALATION_EMAIL_TO ESCALATION_EMAIL_FROM SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS; do
+  if [ -z "${!var:-}" ]; then
+    fail "Env var $var is missing"
+    exit 1
+  fi
+done
+
+# SMTP_SECURE is optional but warn if missing
+if [ -z "${SMTP_SECURE:-}" ]; then
+  warn "Env var SMTP_SECURE is not set (defaults to false for Gmail port 587)"
+fi
+
+pass "Env vars: BACKEND_URL, INTERNAL_API_KEY, and 6 SMTP vars (all present)"
+
+# ---- 3b. Validate SMTP config (no placeholders, no secrets printed) ---------
+for var in SMTP_HOST SMTP_USER ESCALATION_EMAIL_TO ESCALATION_EMAIL_FROM; do
+  val="${!var:-}"
+  if echo "$val" | grep -qiE "REPLACE|change.me|example\.com|test@example\.com|placeholder"; then
+    fail "$var appears to be a placeholder ('$val')"
+    info "Set real SMTP values in .env for full validation."
+    exit 1
+  fi
+done
+pass "SMTP config validated (no placeholders detected)"
+
+# ---- 3c. Validate SMTP_PORT is a number ---------
+if ! echo "${SMTP_PORT:-}" | grep -qE '^[0-9]+$'; then
+  fail "SMTP_PORT must be a number, got: '${SMTP_PORT:-}'"
   exit 1
 fi
-pass "DISCORD_WEBHOOK_URL appears valid (not a placeholder)"
+pass "SMTP_PORT is a valid port number"
+
+# ---- 3d. Do NOT print SMTP_PASS ------------------------------
+info "SMTP_PASS is set (value not printed)"
 
 # ---- 4. Health checks ---------------------------------------
 info "Checking backend health..."
@@ -205,7 +239,7 @@ if [ "$HTTP_CODE" = "404" ]; then
 elif [ "$HTTP_CODE" = "500" ]; then
   fail "Webhook returned HTTP 500 — workflow execution error"
   info "Check n8n execution logs for the failing node."
-  info "Common causes: DISCORD_WEBHOOK_URL unreachable, backend auth mismatch."
+  info "Common causes: SMTP auth failure (check App Password), backend unreachable."
   exit 1
 elif [ "$HTTP_CODE" != "200" ]; then
   fail "Webhook returned HTTP $HTTP_CODE"
@@ -221,14 +255,16 @@ info "Checking escalation status..."
 ESCALATION_DETAIL=$(curl -s "$LOCAL_BACKEND/api/v1/escalations/$ESCALATION_ID" \
   -H "X-API-Key: $INTERNAL_API_KEY")
 
-NEW_STATUS=$(echo "$ESCALATION_DETAIL" | jq -r '.status // empty')
-NOTIFIED_AT=$(echo "$ESCALATION_DETAIL" | jq -r '.notifiedAt // empty')
+NEW_STATUS=$(echo "$ESCALATION_DETAIL" | jq -r '.escalation.status // empty')
+NOTIFIED_AT=$(echo "$ESCALATION_DETAIL" | jq -r '.escalation.notifiedAt // empty')
 
 if [ "$NEW_STATUS" = "NOTIFIED" ] && [ "$NOTIFIED_AT" != "null" ] && [ -n "$NOTIFIED_AT" ]; then
   pass "Escalation $ESCALATION_ID: status=NOTIFIED, notifiedAt=$NOTIFIED_AT"
 else
   fail "Escalation $ESCALATION_ID: status=$NEW_STATUS, notifiedAt=$NOTIFIED_AT"
   info "Expected: status=NOTIFIED, notifiedAt=<timestamp>"
+  info "If the webhook returned 200 but status is still OPEN, the email delivery"
+  info "may have succeeded but PATCH Mark Notified failed. Check n8n execution logs."
   exit 1
 fi
 
@@ -252,7 +288,7 @@ NOTIFIED_COUNT2=$(echo "$WEBHOOK_BODY2" | jq -r '.[0].escalationsNotified // "0"
 ESCALATION_DETAIL2=$(curl -s "$LOCAL_BACKEND/api/v1/escalations/$ESCALATION_ID" \
   -H "X-API-Key: $INTERNAL_API_KEY")
 
-STATUS2=$(echo "$ESCALATION_DETAIL2" | jq -r '.status // empty')
+STATUS2=$(echo "$ESCALATION_DETAIL2" | jq -r '.escalation.status // empty')
 if [ "$STATUS2" = "NOTIFIED" ]; then
   pass "Duplicate prevention confirmed: escalation still NOTIFIED, not re-processed"
   pass "Second run notified $NOTIFIED_COUNT2 escalation(s) (excludes already-notified)"
@@ -293,12 +329,15 @@ echo ""
 echo "  ✓ Backend healthy"
 echo "  ✓ n8n healthy"
 echo "  ✓ Env vars present"
+echo "  ✓ SMTP config validated (no placeholders)"
 echo "  ✓ Conversation created"
 echo "  ✓ Escalation created (OPEN)"
 echo "  ✓ Webhook triggered"
+echo "  ✓ Email delivered (SMTP)"
 echo "  ✓ Escalation → NOTIFIED"
 echo "  ✓ Duplicate prevention confirmed"
 echo "  ✓ Auth rejection confirmed"
 echo ""
-echo "Check Discord for the notification message."
+echo "Check your inbox at $ESCALATION_EMAIL_TO for the notification email."
+echo "Manual validation is NOT complete until you visually confirm the email arrived."
 echo ""

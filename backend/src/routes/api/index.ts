@@ -9,6 +9,7 @@ import { knowledgeBaseRouter } from '../../modules/knowledge-base/routes.js';
 import { escalationsRouter } from '../../modules/escalations/routes.js';
 import { analyticsRouter } from '../../modules/analytics/routes.js';
 import { securityRouter } from '../../modules/security/routes.js';
+import { internalRouter } from './internal.js';
 
 export const apiRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   // Placeholder ping endpoint
@@ -22,6 +23,9 @@ export const apiRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   void app.register(escalationsRouter, { prefix: '/escalations' });
   void app.register(analyticsRouter, { prefix: '/analytics' });
   void app.register(securityRouter, { prefix: '/security' });
+
+  // Internal endpoints (not exposed publicly)
+  void app.register(internalRouter, { prefix: '/internal' });
 
   // AI Gateway - internal only, not exposed as routes
   // Will be called by n8n via POST /api/v1/messages/inbound

@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import formbody from '@fastify/formbody';
 import { healthPlugin } from './plugins/health.js';
 import { envPlugin } from './plugins/env.js';
 import { errorHandler } from './plugins/error-handler.js';
@@ -22,6 +23,7 @@ export function buildApp() {
 
   // Register global plugins
   void app.register(envPlugin);
+  void app.register(formbody);
   void app.register(cors, {
     origin: process.env.CORS_ORIGINS?.split(',') ?? ['http://localhost:3000'],
     credentials: true,
