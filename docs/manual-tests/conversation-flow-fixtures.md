@@ -21,6 +21,16 @@ Validate fixture structure without a running backend or DB:
 cd backend && npm run check:fixtures
 ```
 
+### Inspect Fixture Behavior
+
+Preview how each fixture would be processed using the inspection formatter (no DB, no backend):
+
+```bash
+cd backend && npm run inspect:fixtures
+```
+
+This prints a JSON array of inspection summaries showing expected intent, reply source, AI usage flags, and contextual notes for every runnable fixture.
+
 This checks: valid JSON, unique scenarios, fake phone numbers, no secrets, required fields, intent coverage, and idempotency/multi-turn scenario integrity. No network calls.
 
 ---
