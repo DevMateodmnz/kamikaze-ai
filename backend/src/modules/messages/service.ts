@@ -17,6 +17,7 @@ import type { IntentDetectionResult } from '../intent-detection/types.js';
 import { aiGatewayRouter } from '../ai-gateway/router.js';
 import type { Intent as AiIntent } from '../ai-gateway/types.js';
 import { validateAiReply } from './ai-reply-guardrails.js';
+import { buildAiReplyContext } from './ai-reply-context.js';
 
 /**
  * Input for storing an inbound message
@@ -486,6 +487,7 @@ export async function generateReplyWithFallback(input: {
     const result = await aiGatewayRouter.generateReply({
       userMessage: input.userMessage,
       conversationId: input.conversationId,
+      conversationHistory: buildAiReplyContext(),
     });
 
     // Validate the response

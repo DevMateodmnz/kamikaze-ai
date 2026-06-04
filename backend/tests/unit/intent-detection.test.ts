@@ -623,6 +623,34 @@ describe('generateReplyWithFallback', () => {
     vi.unstubAllEnvs();
   });
 
+  // ── Context integration ──────────────────────────────────────────
+
+  it('passes conversationHistory to generateReply when AI is enabled and intent is safe', async () => {
+    vi.stubEnv('AI_REPLIES_ENABLED', 'true');
+    mockedRouter.generateReply.mockResolvedValueOnce({
+      text: '¡Claro! Contame más sobre qué uso le vas a dar.',
+      confidence: 0.85,
+      finishReason: 'stop',
+      needsHuman: false,
+      provider: 'minimax',
+      latencyMs: 200,
+    });
+
+    await generateReplyWithFallback({
+      userMessage,
+      conversationId,
+      intent: 'product_interest',
+    });
+
+    expect(mockedRouter.generateReply).toHaveBeenCalledTimes(1);
+    const callArgs = mockedRouter.generateReply.mock.calls[0]![0]!;
+    expect(callArgs.conversationHistory).toBeDefined();
+    expect(callArgs.conversationHistory!.length).toBeGreaterThan(0);
+    expect(callArgs.conversationHistory![0]!.role).toBe('system');
+    expect(callArgs.conversationHistory![0]!.content).toMatch(/asistente/i);
+    vi.unstubAllEnvs();
+  });
+
   // ── Guardrail integration ────────────────────────────────────────
 
   it('returns null when guardrails reject AI reply (price in text)', async () => {
