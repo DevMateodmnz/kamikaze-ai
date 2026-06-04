@@ -13,6 +13,16 @@ Repeatable manual validation of the message processing pipeline end-to-end, cove
 
 No real WhatsApp credentials, no real customer data, no secrets. Everything uses fake IDs and placeholder phone numbers.
 
+### Quick Fixture Validation
+
+Validate fixture structure without a running backend or DB:
+
+```bash
+cd backend && npm run check:fixtures
+```
+
+This checks: valid JSON, unique scenarios, fake phone numbers, no secrets, required fields, intent coverage, and idempotency/multi-turn scenario integrity. No network calls.
+
 ---
 
 ## Preconditions
