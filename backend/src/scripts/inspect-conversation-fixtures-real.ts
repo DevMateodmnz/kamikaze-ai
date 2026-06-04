@@ -135,6 +135,12 @@ interface InspectionResult {
   aiReplyEnabled?: boolean;
   knowledgeBaseEntryId?: string;
   confidence?: number;
+  outboundDelivery?: {
+    attempted: boolean;
+    sent: boolean;
+    reason: string;
+    waMessageId?: string;
+  };
   notes: string[];
 }
 
@@ -145,6 +151,7 @@ function formatInspection(raw: unknown, scenario: string): InspectionResult {
   }
   const proc = r['processing'] as Record<string, unknown> | null;
   const trace = (proc?.['trace'] ?? null) as Record<string, unknown> | null;
+  const od = trace?.['outboundDelivery'] as Record<string, unknown> | undefined;
   return {
     processed: proc != null,
     duplicate: Boolean(r['duplicate']),
@@ -156,6 +163,12 @@ function formatInspection(raw: unknown, scenario: string): InspectionResult {
     aiReplyEnabled: trace?.['aiReplyEnabled'] as boolean | undefined,
     knowledgeBaseEntryId: trace?.['knowledgeBaseEntryId'] as string | undefined,
     confidence: trace?.['confidence'] as number | undefined,
+    outboundDelivery: od ? {
+      attempted: Boolean(od['attempted']),
+      sent: Boolean(od['sent']),
+      reason: String(od['reason'] ?? 'unknown'),
+      ...(od['waMessageId'] ? { waMessageId: String(od['waMessageId']) } : {}),
+    } : undefined,
     notes: [
       `[real service] ${scenario}`,
       proc != null ? 'Message fully processed.' : 'Duplicate or stored-only (no processing).',

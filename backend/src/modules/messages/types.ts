@@ -61,4 +61,18 @@ export interface MessageProcessingTrace {
   knowledgeBaseEntryId?: string;
   /** Confidence score from intent detection. */
   confidence?: number;
+  /** Outbound WhatsApp delivery metadata. Present only when a customer reply was generated. */
+  outboundDelivery?: OutboundDeliveryTrace;
+}
+
+/** Safe outbound delivery metadata. Never includes tokens or raw provider payloads. */
+export interface OutboundDeliveryTrace {
+  /** Whether delivery was attempted (false when disabled or config missing). */
+  attempted: boolean;
+  /** Whether WhatsApp accepted the message. */
+  sent: boolean;
+  /** Reason for the delivery result. */
+  reason: 'disabled' | 'config_missing' | 'delivered' | 'delivery_failed';
+  /** WhatsApp message ID from Meta on success. */
+  waMessageId?: string;
 }

@@ -314,6 +314,8 @@ export async function processInboundMessage(
   const intentSource = detection.intentSource ?? 'deterministic';
   const aiIntentUsed = intentSource === 'ai';
   let aiReplyUsed = false;
+  // Outbound delivery trace — only set when a customer reply is sent
+  let outboundDelivery: MessageProcessingTrace['outboundDelivery'];
 
   // If action is reply, select the reply text in priority order:
   // 1. AI-generated reply (only if AI_REPLIES_ENABLED=true + safe intent)
@@ -366,7 +368,13 @@ export async function processInboundMessage(
     // Attempt WhatsApp delivery (disabled by default — WHATSAPP_OUTBOUND_ENABLED=false)
     // Store-first: outbound message is persisted before delivery attempt.
     // Delivery failure does NOT break processing — message is already stored.
-    await attemptWhatsAppDelivery(replyTextToStore, result.customer.phone);
+    const deliveryResult = await attemptWhatsAppDelivery(replyTextToStore, result.customer.phone);
+    outboundDelivery = {
+      attempted: deliveryResult.reason !== 'disabled' && deliveryResult.reason !== 'config_missing',
+      sent: deliveryResult.sent,
+      reason: deliveryResult.reason,
+      ...(deliveryResult.waMessageId && { waMessageId: deliveryResult.waMessageId }),
+    };
   }
 
   // If action is escalate, update conversation status and create escalation record
@@ -400,6 +408,7 @@ export async function processInboundMessage(
     aiReplyEnabled,
     confidence: detection.confidence,
     ...(knowledgeBaseEntryId && { knowledgeBaseEntryId }),
+    ...(outboundDelivery && { outboundDelivery }),
   };
 
   return {

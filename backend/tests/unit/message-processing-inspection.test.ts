@@ -307,4 +307,69 @@ describe('inspectMessageProcessing', () => {
     expect(inspection.intentSource).toBe('deterministic');
     expect(inspection.notes.some((n) => n.toLowerCase().includes('keyword'))).toBe(true);
   });
+
+  // ── Outbound delivery trace ───────────────────────────────────────
+
+  it('includes outboundDelivery when trace has delivery metadata', () => {
+    const result = baseResult();
+    result.processing!.trace = makeTrace({
+      intent: 'greeting',
+      intentSource: 'deterministic',
+      replySource: 'template',
+      aiIntentUsed: false,
+      aiReplyUsed: false,
+      outboundDelivery: {
+        attempted: true,
+        sent: true,
+        reason: 'delivered',
+        waMessageId: 'wamid.test123',
+      },
+    });
+
+    const inspection = inspectMessageProcessing(result);
+
+    expect(inspection.outboundDelivery).toBeDefined();
+    expect(inspection.outboundDelivery!.sent).toBe(true);
+    expect(inspection.outboundDelivery!.reason).toBe('delivered');
+    expect(inspection.outboundDelivery!.waMessageId).toBe('wamid.test123');
+    expect(inspection.notes.some((n) => n.toLowerCase().includes('delivery'))).toBe(true);
+  });
+
+  it('includes outboundDelivery when disabled', () => {
+    const result = baseResult();
+    result.processing!.trace = makeTrace({
+      outboundDelivery: {
+        attempted: false,
+        sent: false,
+        reason: 'disabled',
+      },
+    });
+
+    const inspection = inspectMessageProcessing(result);
+
+    expect(inspection.outboundDelivery).toBeDefined();
+    expect(inspection.outboundDelivery!.attempted).toBe(false);
+    expect(inspection.outboundDelivery!.reason).toBe('disabled');
+  });
+
+  it('does NOT expose access tokens in outboundDelivery', () => {
+    const result = baseResult();
+    result.processing!.trace = makeTrace({
+      outboundDelivery: {
+        attempted: true,
+        sent: true,
+        reason: 'delivered',
+        waMessageId: 'wamid.abc',
+      },
+    });
+
+    const inspection = inspectMessageProcessing(result);
+    const json = JSON.stringify(inspection);
+
+    // waMessageId is a provider ID, not a token — it's safe to include
+    expect(json).toContain('wamid.abc');
+    // But no tokens
+    expect(json).not.toMatch(/Bearer/i);
+    expect(json).not.toMatch(/secret/i);
+  });
 });

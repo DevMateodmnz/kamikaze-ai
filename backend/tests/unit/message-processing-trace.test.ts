@@ -685,6 +685,13 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(content.length).toBeGreaterThan(0);
     expect(to).toBe(`+5493812365${testTimestamp}`);
 
+    // Verify trace includes delivery metadata
+    const trace = result.processing!.trace!;
+    expect(trace.outboundDelivery).toBeDefined();
+    expect(trace.outboundDelivery!.attempted).toBe(true);
+    expect(trace.outboundDelivery!.sent).toBe(true);
+    expect(trace.outboundDelivery!.reason).toBe('delivered');
+
     vi.unstubAllEnvs();
   });
 
@@ -711,6 +718,13 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(result.success).toBe(true);
     expect(result.processing).not.toBeNull();
     expect(result.processing!.outboundMessageId).toBeTruthy();
+
+    // Trace shows outbound was disabled
+    const trace = result.processing!.trace!;
+    expect(trace.outboundDelivery).toBeDefined();
+    expect(trace.outboundDelivery!.attempted).toBe(false);
+    expect(trace.outboundDelivery!.sent).toBe(false);
+    expect(trace.outboundDelivery!.reason).toBe('disabled');
 
     vi.unstubAllEnvs();
   });
@@ -748,6 +762,13 @@ describe('processInboundMessage — trace integration tests', () => {
     // Outbound message was stored (store-first pattern)
     expect(result.processing!.outboundMessageId).toBeTruthy();
 
+    // Trace shows delivery failure
+    const trace = result.processing!.trace!;
+    expect(trace.outboundDelivery).toBeDefined();
+    expect(trace.outboundDelivery!.attempted).toBe(true);
+    expect(trace.outboundDelivery!.sent).toBe(false);
+    expect(trace.outboundDelivery!.reason).toBe('delivery_failed');
+
     vi.unstubAllEnvs();
   });
 
@@ -776,6 +797,10 @@ describe('processInboundMessage — trace integration tests', () => {
 
     // Escalation path → no outbound reply → no delivery attempt
     expect(mockWhatsAppSender.attemptWhatsAppDelivery).not.toHaveBeenCalled();
+
+    // Trace should NOT have outboundDelivery for escalation
+    const trace = result.processing!.trace!;
+    expect(trace.outboundDelivery).toBeUndefined();
 
     vi.unstubAllEnvs();
   });

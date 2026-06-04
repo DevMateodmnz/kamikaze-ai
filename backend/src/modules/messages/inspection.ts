@@ -41,6 +41,13 @@ export interface InspectionResult {
   escalationReason?: string;
   /** Escalation record ID. */
   escalationId?: string;
+  /** Outbound WhatsApp delivery status. */
+  outboundDelivery?: {
+    attempted: boolean;
+    sent: boolean;
+    reason: string;
+    waMessageId?: string;
+  };
   /** Human-readable contextual notes about the processing decision. */
   notes: string[];
 }
@@ -88,6 +95,9 @@ export function inspectMessageProcessing(
     if (trace.knowledgeBaseEntryId) {
       inspection.knowledgeBaseEntryId = trace.knowledgeBaseEntryId;
     }
+    if (trace.outboundDelivery) {
+      inspection.outboundDelivery = trace.outboundDelivery;
+    }
   } else {
     notes.push('Trace metadata unavailable — incomplete processing.');
     return inspection;
@@ -103,6 +113,18 @@ export function inspectMessageProcessing(
   }
 
   // ── Contextual notes ───────────────────────────────────────────────
+
+  // Outbound delivery note
+  if (trace.outboundDelivery) {
+    const od = trace.outboundDelivery;
+    if (od.sent) {
+      notes.push(`WhatsApp delivery succeeded (id: ${od.waMessageId ?? 'unknown'}).`);
+    } else if (!od.attempted) {
+      notes.push(`WhatsApp delivery not attempted (reason: ${od.reason}).`);
+    } else {
+      notes.push(`WhatsApp delivery failed (reason: ${od.reason}).`);
+    }
+  }
 
   // Intent source notes
   if (trace.intentSource === 'deterministic') {
