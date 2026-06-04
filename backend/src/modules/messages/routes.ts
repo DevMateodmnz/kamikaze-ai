@@ -11,10 +11,6 @@ import { z } from 'zod';
 import { AppError } from '../../utils/app-error.js';
 import { messagesService } from './service.js';
 import { conversationsService } from '../conversations/service.js';
-import { detectIntent } from '../intent-detection/detector.js';
-import { makeDecision } from '../intent-detection/decision-engine.js';
-import { getVerifiedAnswerForIntent } from '../knowledge-base/service.js';
-import { escalationsService } from '../escalations/service.js';
 
 const inboundMessageSchema = z.object({
   whatsappMessageId: z.string().min(1).max(100),
@@ -136,7 +132,7 @@ export const messagesRouter: FastifyPluginAsync = async (app: FastifyInstance) =
 
   // POST /api/v1/messages/process
   // Store inbound + detect intent + make decision + optional outbound
-  // Does NOT break existing /inbound behavior
+  // Delegates to messagesService.processInboundMessage() (reusable core)
   app.post(
     '/process',
     {
@@ -162,90 +158,12 @@ export const messagesRouter: FastifyPluginAsync = async (app: FastifyInstance) =
         });
       }
 
-      // Store inbound message (idempotent)
-      const result = await messagesService.storeInboundMessage({
+      return messagesService.processInboundMessage({
         whatsappMessageId: parseResult.data.whatsappMessageId,
         from: parseResult.data.from,
         text: parseResult.data.text,
         timestamp: parseResult.data.timestamp,
       });
-
-      // Skip processing for duplicates (already handled)
-      if (result.duplicate) {
-        return {
-          success: true,
-          messageId: result.message.id,
-          conversationId: result.conversation.id,
-          customerId: result.customer.id,
-          duplicate: true,
-          processing: null,
-        };
-      }
-
-      // Detect intent
-      const detection = detectIntent(parseResult.data.text);
-
-      // Make decision
-      const decision = makeDecision(detection.intent, detection.confidence);
-
-      // If action is reply, check if we have verified KB data for this intent
-      let outboundMessageId: string | null = null;
-      if (decision.action === 'reply' && decision.replyText) {
-        // Check if this intent has verified KB data
-        const kbAnswer = await getVerifiedAnswerForIntent(detection.intent);
-        const replyTextToStore = kbAnswer ? kbAnswer.answer : decision.replyText;
-
-        const outbound = await messagesService.storeOutboundMessage({
-          conversationId: result.conversation.id,
-          content: replyTextToStore,
-          intent: detection.intent,
-          confidence: detection.confidence,
-          aiProvider: 'deterministic',
-          tokensUsed: 0,
-        });
-        outboundMessageId = outbound.id;
-        decision.outboundMessageId = outboundMessageId;
-      }
-
-      // If action is escalate, update conversation status and create escalation record
-      let escalationId: string | null = null;
-      if (decision.action === 'escalate') {
-        await conversationsService.updateConversationStatus(
-          result.conversation.id,
-          'ESCALATED'
-        );
-        // Update current intent on conversation
-        await conversationsService.updateConversationIntent(
-          result.conversation.id,
-          detection.intent
-        );
-
-        // Create escalation record
-        const escalation = await escalationsService.createEscalation({
-          conversationId: result.conversation.id,
-          reason: decision.escalationReason ?? 'unknown',
-          reasonDetail: detection.intent,
-          suggestedReply: null,
-        });
-        escalationId = escalation.id;
-      }
-
-      return {
-        success: true,
-        messageId: result.message.id,
-        conversationId: result.conversation.id,
-        customerId: result.customer.id,
-        duplicate: false,
-        processing: {
-          intent: detection.intent,
-          confidence: detection.confidence,
-          action: decision.action,
-          replyText: decision.replyText,
-          escalationReason: decision.escalationReason,
-          outboundMessageId,
-          escalationId,
-        },
-      };
     }
   );
 };

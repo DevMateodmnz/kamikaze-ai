@@ -11,6 +11,47 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { AppError } from '../../utils/app-error.js';
 
+// ---------------------------------------------------------------------------
+// WhatsApp payload types (subset of Meta's webhook schema)
+// ---------------------------------------------------------------------------
+
+interface WhatsAppTextMessage {
+  from: string;
+  id: string;
+  timestamp: string;
+  type: 'text';
+  text: { body: string };
+}
+
+interface WhatsAppValue {
+  messaging_product?: string;
+  messages?: WhatsAppTextMessage[];
+}
+
+interface WhatsAppChange {
+  value?: WhatsAppValue;
+}
+
+interface WhatsAppEntry {
+  id?: string;
+  changes?: WhatsAppChange[];
+}
+
+interface WhatsAppWebhookBody {
+  object?: string;
+  entry?: WhatsAppEntry[];
+}
+
+/**
+ * Parsed WhatsApp text message ready for the processing pipeline.
+ */
+export interface ParsedWhatsAppMessage {
+  from: string;
+  whatsappMessageId: string;
+  text: string;
+  timestamp: string;
+}
+
 /**
  * Verify the hub.challenge subscription request.
  *
@@ -84,4 +125,36 @@ export function verifyWebhookSignature(
   } catch {
     return false;
   }
+}
+
+/**
+ * Parse a Meta WhatsApp webhook body into a normalized message.
+ *
+ * Navigates the nested Meta webhook structure:
+ *   entry[0].changes[0].value.messages[0]
+ *
+ * Only processes messages with `type: 'text'`.
+ * Status callbacks, media, interactive, and malformed payloads return null.
+ *
+ * @returns ParsedWhatsAppMessage or null if the payload does not contain
+ *          a processable text message.
+ */
+export function parseWhatsAppMessage(
+  body: WhatsAppWebhookBody | null | undefined
+): ParsedWhatsAppMessage | null {
+  if (!body) return null;
+
+  const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+
+  if (!message) return null;
+  if (message.type !== 'text') return null;
+  if (!message.text?.body) return null;
+  if (!message.from) return null;
+
+  return {
+    from: message.from,
+    whatsappMessageId: message.id,
+    text: message.text.body,
+    timestamp: message.timestamp,
+  };
 }

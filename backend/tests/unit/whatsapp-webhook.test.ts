@@ -10,7 +10,9 @@ import { createHmac } from 'crypto';
 import {
   verifyHubChallenge,
   verifyWebhookSignature,
+  parseWhatsAppMessage,
 } from '../../src/modules/security/whatsapp-webhook.js';
+import type { ParsedWhatsAppMessage } from '../../src/modules/security/whatsapp-webhook.js';
 import { AppError } from '../../src/utils/app-error.js';
 
 // Test constants — these are test-only, NEVER real secrets
@@ -185,5 +187,124 @@ describe('verifyWebhookSignature', () => {
     const signature = 'sha256=not_valid_hex!@#$';
 
     expect(verifyWebhookSignature(body, signature, TEST_APP_SECRET)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseWhatsAppMessage — payload extraction
+// ---------------------------------------------------------------------------
+
+function makeTextPayload(overrides?: Record<string, unknown>): Record<string, unknown> {
+  return {
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: '123456',
+        changes: [
+          {
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: {
+                display_phone_number: '15551234567',
+                phone_number_id: '987654',
+              },
+              contacts: [
+                {
+                  profile: { name: 'Test User' },
+                  wa_id: '5493812345678',
+                },
+              ],
+              messages: [
+                {
+                  from: '5493812345678',
+                  id: 'wamid.test123',
+                  timestamp: '1717000000',
+                  type: 'text',
+                  text: { body: 'Hola, quiero info' },
+                  ...overrides,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe('parseWhatsAppMessage', () => {
+  it('extracts fields from a valid text message payload', () => {
+    const payload = makeTextPayload();
+    const result = parseWhatsAppMessage(payload as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.from).toBe('5493812345678');
+    expect(result!.whatsappMessageId).toBe('wamid.test123');
+    expect(result!.text).toBe('Hola, quiero info');
+    expect(result!.timestamp).toBe('1717000000');
+  });
+
+  it('returns null when entry array is empty', () => {
+    const result = parseWhatsAppMessage({ object: 'whatsapp_business_account', entry: [] });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when entries are missing', () => {
+    const result = parseWhatsAppMessage({ object: 'whatsapp_business_account' });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when changes array is empty', () => {
+    const payload = {
+      object: 'whatsapp_business_account',
+      entry: [{ id: '1', changes: [] }],
+    };
+    expect(parseWhatsAppMessage(payload as any)).toBeNull();
+  });
+
+  it('returns null when messages array is empty', () => {
+    const payload = makeTextPayload();
+    // Override messages to be empty
+    (payload as any).entry[0].changes[0].value.messages = [];
+    expect(parseWhatsAppMessage(payload as any)).toBeNull();
+  });
+
+  it('returns null for non-text message types (e.g. image)', () => {
+    const payload = makeTextPayload({ type: 'image' });
+    expect(parseWhatsAppMessage(payload as any)).toBeNull();
+  });
+
+  it('returns null for status callback (no text field)', () => {
+    const payload = {
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: '1',
+          changes: [
+            {
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: { display_phone_number: 'x', phone_number_id: 'y' },
+                statuses: [
+                  { id: 'wamid.abc', status: 'delivered', timestamp: '1' },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    expect(parseWhatsAppMessage(payload as any)).toBeNull();
+  });
+
+  it('returns null when text.body is empty', () => {
+    const payload = makeTextPayload({ text: { body: '' } });
+    expect(parseWhatsAppMessage(payload as any)).toBeNull();
+  });
+
+  it('returns null for completely malformed body', () => {
+    expect(parseWhatsAppMessage({} as any)).toBeNull();
+    expect(parseWhatsAppMessage(null as any)).toBeNull();
+    expect(parseWhatsAppMessage('string' as any)).toBeNull();
   });
 });

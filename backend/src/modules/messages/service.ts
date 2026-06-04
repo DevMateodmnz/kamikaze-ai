@@ -1,13 +1,18 @@
 /**
  * Messages Service
  *
- * Handles message storage and retrieval via Prisma.
+ * Handles message storage, retrieval, and processing via Prisma.
  */
 
 import { prisma } from '../../config/database.js';
 import type { StoredMessage } from './types.js';
 import { customersService } from '../customers/service.js';
 import { conversationsService } from '../conversations/service.js';
+import { detectIntent } from '../intent-detection/detector.js';
+import { makeDecision } from '../intent-detection/decision-engine.js';
+import { getVerifiedAnswerForIntent } from '../knowledge-base/service.js';
+import { escalationsService } from '../escalations/service.js';
+import type { Intent } from '../intent-detection/types.js';
 
 /**
  * Input for storing an inbound message
@@ -221,6 +226,134 @@ function messageToStoredMessage(message: {
   };
 }
 
+/**
+ * Input for the message processing pipeline.
+ */
+export interface ProcessMessageInput {
+  whatsappMessageId?: string;
+  from: string;
+  text: string;
+  timestamp?: string;
+}
+
+/**
+ * Result of the message processing pipeline.
+ */
+export interface ProcessMessageResult {
+  success: boolean;
+  messageId: string;
+  conversationId: string;
+  customerId: string;
+  duplicate: boolean;
+  processing: {
+    intent: Intent;
+    confidence: number;
+    action: string;
+    replyText: string | null;
+    escalationReason: string | null;
+    outboundMessageId: string | null;
+    escalationId: string | null;
+  } | null;
+}
+
+/**
+ * Full message processing pipeline.
+ *
+ * 1. Store inbound message (idempotent via whatsappMessageId)
+ * 2. Skip processing for duplicates
+ * 3. Detect intent (deterministic keyword-based)
+ * 4. Make decision (reply / escalate)
+ * 5. If reply: store outbound message (KB answer or template)
+ * 6. If escalate: update conversation + create escalation record
+ *
+ * This is the reusable core — called by both the /messages/process
+ * HTTP route and the WhatsApp webhook handler.
+ */
+export async function processInboundMessage(
+  input: ProcessMessageInput
+): Promise<ProcessMessageResult> {
+  // Store inbound message (idempotent)
+  const result = await storeInboundMessage({
+    whatsappMessageId: input.whatsappMessageId,
+    from: input.from,
+    text: input.text,
+    timestamp: input.timestamp,
+  });
+
+  // Skip processing for duplicates (already handled)
+  if (result.duplicate) {
+    return {
+      success: true,
+      messageId: result.message.id,
+      conversationId: result.conversation.id,
+      customerId: result.customer.id,
+      duplicate: true,
+      processing: null,
+    };
+  }
+
+  // Detect intent
+  const detection = detectIntent(input.text);
+
+  // Make decision
+  const decision = makeDecision(detection.intent, detection.confidence);
+
+  // If action is reply, check if we have verified KB data for this intent
+  let outboundMessageId: string | null = null;
+  if (decision.action === 'reply' && decision.replyText) {
+    const kbAnswer = await getVerifiedAnswerForIntent(detection.intent);
+    const replyTextToStore = kbAnswer ? kbAnswer.answer : decision.replyText;
+
+    const outbound = await storeOutboundMessage({
+      conversationId: result.conversation.id,
+      content: replyTextToStore,
+      intent: detection.intent,
+      confidence: detection.confidence,
+      aiProvider: 'deterministic',
+      tokensUsed: 0,
+    });
+    outboundMessageId = outbound.id;
+  }
+
+  // If action is escalate, update conversation status and create escalation record
+  let escalationId: string | null = null;
+  if (decision.action === 'escalate') {
+    await conversationsService.updateConversationStatus(
+      result.conversation.id,
+      'ESCALATED'
+    );
+    await conversationsService.updateConversationIntent(
+      result.conversation.id,
+      detection.intent
+    );
+
+    const escalation = await escalationsService.createEscalation({
+      conversationId: result.conversation.id,
+      reason: decision.escalationReason ?? 'unknown',
+      reasonDetail: detection.intent,
+      suggestedReply: null,
+    });
+    escalationId = escalation.id;
+  }
+
+  return {
+    success: true,
+    messageId: result.message.id,
+    conversationId: result.conversation.id,
+    customerId: result.customer.id,
+    duplicate: false,
+    processing: {
+      intent: detection.intent,
+      confidence: detection.confidence,
+      action: decision.action,
+      replyText: decision.replyText,
+      escalationReason: decision.escalationReason,
+      outboundMessageId,
+      escalationId,
+    },
+  };
+}
+
 // Export as singleton service object
 export const messagesService = {
   storeInboundMessage,
@@ -228,4 +361,5 @@ export const messagesService = {
   getMessageHistory,
   getMessageByWhatsappId,
   isMessageProcessed,
+  processInboundMessage,
 };

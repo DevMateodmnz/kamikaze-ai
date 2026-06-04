@@ -10,7 +10,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { Readable } from 'stream';
 import { AppError } from '../../utils/app-error.js';
-import { verifyHubChallenge, verifyWebhookSignature } from './whatsapp-webhook.js';
+import {
+  verifyHubChallenge,
+  verifyWebhookSignature,
+  parseWhatsAppMessage,
+} from './whatsapp-webhook.js';
+import { messagesService } from '../messages/service.js';
 
 export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   // ------------------------------------------------------------------
@@ -105,10 +110,29 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
       return reply.status(401).send('Invalid signature');
     }
 
-    // Signature verified — payload is authentic
-    // The raw body is available on request.rawBody for downstream processing.
-    // For now, return success. Message processing integration is a follow-up PR.
-    return reply.status(200).send('OK');
+    // Signature verified — payload is authentic.
+    // Parse the JSON body and extract a processable text message.
+    // Meta sends the raw JSON as the body; Fastify has already parsed it
+    // because the preParsing hook re-emitted the raw bytes as a stream.
+    const body = request.body as Record<string, unknown> | null;
+
+    const parsed = parseWhatsAppMessage(body as any);
+
+    // Non-text events (status callbacks, media, interactive, etc.)
+    // must still return 200 OK so Meta does not retry.
+    if (!parsed) {
+      return reply.status(200).send({ status: 'ignored', reason: 'unsupported_event' });
+    }
+
+    // Process the message through the existing pipeline
+    const result = await messagesService.processInboundMessage({
+      whatsappMessageId: parsed.whatsappMessageId,
+      from: parsed.from,
+      text: parsed.text,
+      timestamp: parsed.timestamp,
+    });
+
+    return reply.status(200).send({ status: 'processed', ...result });
   });
 
   // GET /api/v1/security/rate-limit-status (placeholder)
