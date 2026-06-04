@@ -28,6 +28,9 @@ export interface Env {
   AI_MAX_TOKENS_REPLY: number;
   AI_MAX_TOKENS_INTENT: number;
 
+  // AI-generated replies safety gate
+  AI_REPLIES_ENABLED: boolean;
+
   // Escalation
   DISCORD_WEBHOOK_URL: string;
   ESCALATION_CHANNEL_ID: string;

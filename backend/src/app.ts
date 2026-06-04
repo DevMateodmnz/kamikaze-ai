@@ -4,6 +4,7 @@ import formbody from '@fastify/formbody';
 import { healthPlugin } from './plugins/health.js';
 import { envPlugin } from './plugins/env.js';
 import { errorHandler } from './plugins/error-handler.js';
+import { rateLimitPlugin } from './plugins/rate-limit.js';
 import { apiRouter } from './routes/api/index.js';
 
 export function buildApp() {
@@ -28,6 +29,7 @@ export function buildApp() {
     origin: process.env.CORS_ORIGINS?.split(',') ?? ['http://localhost:3000'],
     credentials: true,
   });
+  void app.register(rateLimitPlugin);
   void app.setErrorHandler(errorHandler);
 
   // Register routes

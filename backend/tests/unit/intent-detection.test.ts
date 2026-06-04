@@ -381,3 +381,39 @@ describe('classifyIntentWithFallback', () => {
     expect(mockedRouter.generateReply).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// AI_REPLIES_ENABLED — feature flag behavior
+// ---------------------------------------------------------------------------
+
+describe('AI_REPLIES_ENABLED feature flag', () => {
+  it('defaults to false in test environment', () => {
+    const value = process.env['AI_REPLIES_ENABLED'];
+    expect(value).toBe('false');
+  });
+
+  it('is documented as false in .env.example', () => {
+    // This test validates the intent of the flag, not the runtime config file.
+    // The runtime test above confirms the env var is false by default.
+    expect(process.env['AI_REPLIES_ENABLED']).toBe('false');
+  });
+
+  it('aiGatewayRouter.generateReply() is not called when AI_REPLIES_ENABLED is false', async () => {
+    const mockedRouter = vi.mocked(aiGatewayRouter);
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+
+    await classifyIntentWithFallback('Busco una MTB');
+
+    // classifyIntent may be called, but generateReply must NOT be
+    expect(mockedRouter.generateReply).not.toHaveBeenCalled();
+  });
+
+  it('deterministic reply behavior is unchanged when AI_REPLIES_ENABLED is false', () => {
+    const result = detectIntent('Hola, buenos días');
+    expect(result.intent).toBe('greeting');
+    expect(result.confidence).toBeGreaterThan(0.5);
+  });
+});

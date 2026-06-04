@@ -28,6 +28,9 @@ const envSchema = z.object({
   AI_MAX_TOKENS_REPLY: z.coerce.number().int().min(50).max(4000).default(400),
   AI_MAX_TOKENS_INTENT: z.coerce.number().int().min(10).max(500).default(100),
 
+  // AI-generated replies (disabled by default — enable only after safety review)
+  AI_REPLIES_ENABLED: z.coerce.boolean().default(false),
+
   // Escalation
   DISCORD_WEBHOOK_URL: z.string().url().optional(),
   ESCALATION_CHANNEL_ID: z.string().optional(),
@@ -60,6 +63,7 @@ export function validateEnv(): Env {
     AI_TIMEOUT_MS: process.env.AI_TIMEOUT_MS,
     AI_MAX_TOKENS_REPLY: process.env.AI_MAX_TOKENS_REPLY,
     AI_MAX_TOKENS_INTENT: process.env.AI_MAX_TOKENS_INTENT,
+    AI_REPLIES_ENABLED: process.env.AI_REPLIES_ENABLED,
     DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
     ESCALATION_CHANNEL_ID: process.env.ESCALATION_CHANNEL_ID,
     CORS_ORIGINS: process.env.CORS_ORIGINS,
