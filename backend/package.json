@@ -15,7 +15,8 @@
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "seed:kb": "tsx src/scripts/seed-knowledge-base.ts"
+    "seed:kb": "tsx src/scripts/seed-knowledge-base.ts",
+    "check:kb-safety": "bash ../scripts/check-kb-safety.sh"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

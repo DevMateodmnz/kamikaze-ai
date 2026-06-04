@@ -174,13 +174,132 @@ KB data is deterministic and pre-verified. AI integration (MiniMax) comes after:
 
 ---
 
-## Next Steps
+## Verified KB Population & Validation Workflow
 
-1. **Business verification**: Kamikaze Bikes confirms store hours, address, payment methods
-2. **Activate entries**: Set `active=true` and update `confidence` for verified entries
-3. **AI integration**: PR-007 — MiniMax provider, AI-powered replies
-4. **Escalation records**: PR-008 — Create Escalation records when action=escalate
+This section covers the safe procedure for populating `data/kb-verified.json` with real business facts and validating that they are injected correctly — without exposing real data to git or activating unverified placeholders.
+
+### 1. Copy the template
+
+```bash
+cp data/kb-verified.example.json data/kb-verified.json
+```
+
+`data/kb-verified.json` is gitignored (see `.gitignore` line 55). It must **never** be committed.
+
+### 2. Fill in verified entries
+
+Edit `data/kb-verified.json`. For each entry you want to activate:
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `category` | ✅ | One of: `store_info`, `policy`, `faq` |
+| `question` | optional | Can be `null` — entry matches by category, not question |
+| `answer` | ✅ | The real business-verified answer. Must NOT contain `NEEDS_BUSINESS_VERIFICATION`. |
+| `tags` | recommended | Helps with tag-based retrieval |
+| `confidence` | ✅ | Must be `> 0.5` for the entry to be served. Use `0.8–1.0` for verified facts. |
+| `active` | ✅ | Must be `true` for the entry to be served |
+
+**Example verified entry**:
+
+```json
+{
+  "category": "store_info",
+  "question": null,
+  "answer": "Atendemos de lunes a viernes de 9 a 18 hs, y sábados de 9 a 13 hs.",
+  "tags": ["horarios", "atencion"],
+  "confidence": 1.0,
+  "active": true
+}
+```
+
+> ⚠️ **CRITICAL**: Never set `active: true` on any entry whose `answer` you have not personally verified with the business owner. Placeholder entries (`NEEDS_BUSINESS_VERIFICATION`) must stay inactive.
+
+### 3. Run the safety check
+
+```bash
+npm run check:kb-safety
+```
+
+This validates:
+- `data/kb-verified.json` is gitignored (not tracked by git)
+- No entry with `active: true` has a `NEEDS_BUSINESS_VERIFICATION` marker in its answer
+- No entry with `active: true` has `confidence <= 0.5`
+
+Run this before every seed and before every deploy.
+
+### 4. Seed the database
+
+```bash
+cd backend && npm run seed:kb
+```
+
+The seed script:
+- Merges inline seed entries (inactive placeholders + 3 verified FAQs) with your `data/kb-verified.json` entries
+- Is **idempotent**: running twice won't create duplicates (matched by category + question)
+- Skips entries that already exist
+- Prints a summary: total entries, active count, inactive count
+
+### 5. Verify injection works
+
+**Option A — Check the seed output**:
+- Active entries are marked with `✅` in the seed log
+- Inactive placeholders are marked with `⚠️`
+- The summary at the end shows how many entries are active
+
+**Option B — Inspect the database**:
+```bash
+cd backend && npx prisma studio
+# Navigate to KnowledgeBaseEntry table
+# Confirm only verified entries have active=true
+```
+
+**Option C — Test via API**:
+```bash
+# List active store_info entries
+curl http://localhost:3000/api/v1/knowledge-base/category/store_info
+
+# Search for a specific topic
+curl "http://localhost:3000/api/v1/knowledge-base/search?q=horarios"
+```
+
+### 6. Safety checklist — before production
+
+- [ ] `data/kb-verified.json` is NOT tracked by git (`git status` shows nothing)
+- [ ] `npm run check:kb-safety` passes
+- [ ] All active entries in `data/kb-verified.json` have `confidence > 0.5`
+- [ ] No entry with `NEEDS_BUSINESS_VERIFICATION` in its answer has `active: true`
+- [ ] Business owner has approved every active answer
+- [ ] `npm run seed:kb` completed without errors
+- [ ] Placeholder entries (`NEEDS_BUSINESS_VERIFICATION`) remain `active: false`
+
+### How the system protects you
+
+Even if a placeholder entry were mistakenly set to `active: true`, the `getVerifiedAnswerForIntent()` service method applies three independent safety checks before serving any KB entry to a customer:
+
+1. `active === true`
+2. `confidence > 0.5`
+3. Answer does NOT contain: `NEEDS_BUSINESS_VERIFICATION`, `POR CONFIRMAR`, or `[PLACEHOLDER]`
+
+All three must pass. If any fails, the decision engine falls back to the safe template reply.
+
+### How to avoid committing real business data
+
+- `data/kb-verified.json` is in `.gitignore` — git will never track it
+- The example template (`data/kb-verified.example.json`) contains only placeholders
+- Never rename the verified file or remove the gitignore rule
+- Run `git status` before every commit to catch accidental staging
+- The `check:kb-safety` script catches gitignore violations
 
 ---
 
-*Last Updated: 2026-05-29*
+## Next Steps
+
+1. **Business verification**: Kamikaze Bikes confirms store hours, address, payment methods
+2. **Populate verified KB**: Follow the workflow above to fill `data/kb-verified.json`
+3. **Activate entries**: Set `active=true` and update `confidence` for verified entries
+4. **AI integration**: PR-007 — MiniMax provider, AI-powered replies
+5. **Escalation records**: PR-008 — Create Escalation records when action=escalate
+
+---
+
+*Last Updated: 2026-06-04*
