@@ -93,8 +93,8 @@ send_msg '{"from": "+5490000000001", "text": "Hola, buenos días"}'
 - `processing.trace.intent`: `"greeting"`
 - `processing.trace.intentSource`: `"fallback"` (AI not available or disabled)
 - `processing.trace.replySource`: `"template"`
-- `processing.trace.aiUsed`: `false`
-- `processing.trace.aiReplyEnabled`: `false`
+- `processing.trace.aiIntentUsed`: `false`
+- `processing.trace.aiReplyUsed`: `false`
 - `processing.action`: `"reply"`
 - `processing.replyText`: contains `"asistente"` / `"Kamikaze"`
 
@@ -109,7 +109,8 @@ send_msg '{"from": "+5490000000002", "text": "Busco una MTB para montaña, presu
 **Expected:**
 - `processing.trace.intent`: `"product_interest"`
 - `processing.trace.replySource`: `"template"`
-- `processing.trace.aiUsed`: `false`
+- `processing.trace.aiIntentUsed`: `false`
+- `processing.trace.aiReplyUsed`: `false`
 - `processing.replyText`: contains `"uso"` / `"presupuesto"` / `"talle"`
 - AI `generateReply` is NOT called (AI_REPLIES_ENABLED=false)
 
@@ -293,7 +294,7 @@ cat data/manual-test-fixtures/whatsapp-conversation-flow.example.json | \
     echo "$payload" | curl -s -X POST "$BASE_URL/api/v1/messages/process" \
       -H "X-API-Key: $INTERNAL_API_KEY" \
       -H "Content-Type: application/json" \
-      -d @- | jq '{intent: .processing.trace.intent, replySource: .processing.trace.replySource, aiUsed: .processing.trace.aiUsed}'
+      -d @- | jq '{intent: .processing.trace.intent, replySource: .processing.trace.replySource, aiIntentUsed: .processing.trace.aiIntentUsed, aiReplyUsed: .processing.trace.aiReplyUsed}'
 done
 ```
 

@@ -51,8 +51,10 @@ export interface MessageProcessingTrace {
   intentSource: IntentSource;
   /** How the reply text was chosen. Null if no reply was sent (escalation or duplicate). */
   replySource: ReplySource | null;
-  /** Whether AI was involved at all (classification OR reply generation). */
-  aiUsed: boolean;
+  /** Whether AI was used for intent classification. */
+  aiIntentUsed: boolean;
+  /** Whether AI was used for reply generation. */
+  aiReplyUsed: boolean;
   /** Whether the AI_REPLIES_ENABLED feature flag was active. */
   aiReplyEnabled: boolean;
   /** KB entry ID if a verified knowledge base entry was used. */

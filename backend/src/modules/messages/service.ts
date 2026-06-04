@@ -308,7 +308,8 @@ export async function processInboundMessage(
   // Trace metadata — collected during processing
   const aiReplyEnabled = process.env['AI_REPLIES_ENABLED'] === 'true';
   const intentSource = detection.intentSource ?? 'deterministic';
-  let aiUsed = intentSource === 'ai';
+  const aiIntentUsed = intentSource === 'ai';
+  let aiReplyUsed = false;
 
   // If action is reply, check if we have verified KB data for this intent
   let outboundMessageId: string | null = null;
@@ -330,7 +331,7 @@ export async function processInboundMessage(
       replyTextToStore = aiReply.replyText;
       replyAiProvider = aiReply.aiProvider;
       replySource = 'ai';
-      aiUsed = true;
+      aiReplyUsed = true;
     } else {
       // Fallback: KB answer or deterministic template
       const kbAnswer = await getVerifiedAnswerForIntent(detection.intent);
@@ -382,7 +383,8 @@ export async function processInboundMessage(
     intent: detection.intent,
     intentSource,
     replySource,
-    aiUsed,
+    aiIntentUsed,
+    aiReplyUsed,
     aiReplyEnabled,
     confidence: detection.confidence,
     ...(knowledgeBaseEntryId && { knowledgeBaseEntryId }),

@@ -1,7 +1,7 @@
 [
   {
     "_scenario": "1-greeting-deterministic-template",
-    "_description": "Simple greeting — should return deterministic template reply with intent=greeting, replySource=template, aiUsed=false.",
+    "_description": "Simple greeting — should return deterministic template reply with intent=greeting, replySource=template, aiIntentUsed=false, aiReplyUsed=false.",
     "from": "+5490000000001",
     "text": "Hola, buenos días",
     "timestamp": "1700000001"

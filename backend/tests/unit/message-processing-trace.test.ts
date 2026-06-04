@@ -174,7 +174,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
   // ── Deterministic template reply ─────────────────────────────────
 
-  it('returns trace with aiUsed=false and replySource="template" for greeting', async () => {
+  it('returns trace with aiIntentUsed=false, aiReplyUsed=false and replySource="template" for greeting', async () => {
     if (!dbAvailable) return;
     vi.stubEnv('AI_REPLIES_ENABLED', 'false');
 
@@ -197,7 +197,8 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(trace.intent).toBe('greeting');
     expect(trace.intentSource).toBe('fallback');
     expect(trace.replySource).toBe('template');
-    expect(trace.aiUsed).toBe(false);
+    expect(trace.aiIntentUsed).toBe(false);
+    expect(trace.aiReplyUsed).toBe(false);
     expect(trace.aiReplyEnabled).toBe(false);
     expect(trace.knowledgeBaseEntryId).toBeUndefined();
     expect(typeof trace.confidence).toBe('number');
@@ -238,7 +239,8 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(trace.intent).toBe('store_hours');
     expect(trace.replySource).toBe('knowledge_base');
     expect(trace.knowledgeBaseEntryId).toBe(kbEntry.id);
-    expect(trace.aiUsed).toBe(false);
+    expect(trace.aiIntentUsed).toBe(false);
+    expect(trace.aiReplyUsed).toBe(false);
 
     // Cleanup
     await knowledgeBaseService.deactivateEntry(kbEntry.id);
@@ -292,12 +294,13 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(trace.intent).toBe('complaint');
     expect(trace.intentSource).toBe('ai');
     expect(trace.replySource).toBe('escalation');
-    expect(trace.aiUsed).toBe(true); // intentSource was AI
+    expect(trace.aiIntentUsed).toBe(true);   // AI classified the intent
+    expect(trace.aiReplyUsed).toBe(false);    // no AI reply generated (escalated)
   });
 
   // ── AI reply path (mocked provider) ──────────────────────────────
 
-  it('returns trace with replySource="ai" and aiUsed=true when AI generates reply', async () => {
+  it('returns trace with replySource="ai", aiIntentUsed=true, aiReplyUsed=true when AI generates reply', async () => {
     if (!dbAvailable) return;
     vi.stubEnv('AI_REPLIES_ENABLED', 'true');
 
@@ -328,13 +331,14 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(trace.intent).toBe('product_interest');
     expect(trace.intentSource).toBe('ai');
     expect(trace.replySource).toBe('ai');
-    expect(trace.aiUsed).toBe(true);
+    expect(trace.aiIntentUsed).toBe(true);
+    expect(trace.aiReplyUsed).toBe(true);
     expect(trace.aiReplyEnabled).toBe(true);
   });
 
   // ── AI disabled (default) — stays deterministic ──────────────────
 
-  it('aiUsed=false and replySource is template when AI_REPLIES_ENABLED=false (default)', async () => {
+  it('aiIntentUsed=true, aiReplyUsed=false when AI_REPLIES_ENABLED=false (AI classifies but does not reply)', async () => {
     if (!dbAvailable) return;
     vi.stubEnv('AI_REPLIES_ENABLED', 'false');
 
@@ -357,7 +361,8 @@ describe('processInboundMessage — trace integration tests', () => {
     const trace = result.processing!.trace!;
     expect(trace.replySource).not.toBe('ai');
     expect(trace.replySource).toBe('template');
-    expect(trace.aiUsed).toBe(true); // intent classification used AI
+    expect(trace.aiIntentUsed).toBe(true);   // AI classified the intent
+    expect(trace.aiReplyUsed).toBe(false);    // AI reply was disabled
     expect(trace.aiReplyEnabled).toBe(false);
     expect(mockedRouter.generateReply).not.toHaveBeenCalled();
   });
