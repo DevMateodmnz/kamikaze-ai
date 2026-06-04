@@ -19,11 +19,25 @@ import { fileURLToPath } from 'url';
 interface FixtureEntry {
   _scenario?: string;
   _description?: string;
+  _expectedIntent?: string;
+  _expectedReplySource?: string;
+  _runnerNote?: string;
   whatsappMessageId?: string;
   from?: string;
   text?: string;
   timestamp?: string;
 }
+
+const VALID_INTENTS = new Set([
+  'greeting', 'thanks', 'goodbye', 'human_request',
+  'stock_question', 'price_question', 'discount_request',
+  'warranty_or_return', 'complaint', 'product_interest',
+  'store_hours', 'store_location', 'payment_methods', 'shipping', 'unknown',
+]);
+
+const VALID_REPLY_SOURCES = new Set([
+  'template', 'knowledge_base', 'ai', 'fallback', 'escalation',
+]);
 
 // ---------------------------------------------------------------------------
 // Load fixture
@@ -147,6 +161,29 @@ describe('Conversation flow fixture validation', () => {
     expect(multiTurn.length).toBe(3);
     const phones = new Set(multiTurn.map((e) => e.from));
     expect(phones.size).toBe(1); // all same phone
+  });
+
+  // ── Expected metadata (for fixture runner) ─────────────────────────
+
+  it('_expectedIntent values (when present) are valid known intents', () => {
+    for (const e of entries) {
+      if (e._expectedIntent) {
+        expect(VALID_INTENTS.has(e._expectedIntent)).toBe(true);
+      }
+    }
+  });
+
+  it('_expectedReplySource values (when present) are valid reply sources', () => {
+    for (const e of entries) {
+      if (e._expectedReplySource) {
+        expect(VALID_REPLY_SOURCES.has(e._expectedReplySource)).toBe(true);
+      }
+    }
+  });
+
+  it('at least 3 fixtures have _expectedIntent for the runner', () => {
+    const withExpected = entries.filter((e) => e._expectedIntent).length;
+    expect(withExpected).toBeGreaterThanOrEqual(3);
   });
 
   // ── Coverage: all major intent categories represented ─────────────

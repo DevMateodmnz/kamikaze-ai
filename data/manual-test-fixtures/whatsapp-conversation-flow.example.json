@@ -2,6 +2,8 @@
   {
     "_scenario": "1-greeting-deterministic-template",
     "_description": "Simple greeting — should return deterministic template reply with intent=greeting, replySource=template, aiIntentUsed=false, aiReplyUsed=false.",
+    "_expectedIntent": "greeting",
+    "_expectedReplySource": "template",
     "from": "+5490000000001",
     "text": "Hola, buenos días",
     "timestamp": "1700000001"
@@ -9,6 +11,8 @@
   {
     "_scenario": "2-product-interest-template",
     "_description": "Product interest query — should return template reply with intent=product_interest, replySource=template (AI_REPLIES_ENABLED=false by default).",
+    "_expectedIntent": "product_interest",
+    "_expectedReplySource": "template",
     "from": "+5490000000002",
     "text": "Busco una MTB para montaña, presupuesto 500 USD",
     "timestamp": "1700000002"
@@ -16,6 +20,8 @@
   {
     "_scenario": "3-unknown-random-input",
     "_description": "Nonsense input — should classify as unknown and return template fallback reply.",
+    "_expectedIntent": "unknown",
+    "_expectedReplySource": "template",
     "from": "+5490000000003",
     "text": "asdfghjkl qwerty zxcvbnm",
     "timestamp": "1700000003"
@@ -23,6 +29,8 @@
   {
     "_scenario": "4-complaint-escalation",
     "_description": "Customer complaint — should escalate with intent=complaint, replySource=escalation.",
+    "_expectedIntent": "complaint",
+    "_expectedReplySource": "escalation",
     "from": "+5490000000004",
     "text": "Estoy muy enojado con el servicio, es una porquería, nunca me llamaron",
     "timestamp": "1700000004"
@@ -30,6 +38,8 @@
   {
     "_scenario": "5-human-request-escalation",
     "_description": "Explicit human request — should escalate with intent=human_request, replySource=escalation.",
+    "_expectedIntent": "human_request",
+    "_expectedReplySource": "escalation",
     "from": "+5490000000005",
     "text": "Quiero hablar con una persona, no con un robot",
     "timestamp": "1700000005"
@@ -93,6 +103,8 @@
   {
     "_scenario": "14-thanks-template",
     "_description": "Thanks message — template reply with friendly tone.",
+    "_expectedIntent": "thanks",
+    "_expectedReplySource": "template",
     "from": "+5490000000014",
     "text": "Gracias por la información, muy útil",
     "timestamp": "1700000014"
@@ -107,6 +119,9 @@
   {
     "_scenario": "16-duplicate-idempotency",
     "_description": "Duplicate message — this uses a fixed whatsappMessageId to test idempotency. Send twice; second should return duplicate=true, processing=null.",
+    "_expectedIntent": "greeting",
+    "_expectedReplySource": "template",
+    "_runnerNote": "Send twice via processInboundMessage. First: processing present. Second: duplicate=true, processing=null.",
     "whatsappMessageId": "fixture-test-dup-00001",
     "from": "+5490000000016",
     "text": "Hola, qué tal",
