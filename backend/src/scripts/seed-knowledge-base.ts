@@ -3,15 +3,21 @@
  *
  * Run: npx tsx src/scripts/seed-knowledge-base.ts
  *
- * Idempotent: uses upsert logic based on category+question to avoid duplicates.
- * Marked entries with NEEDS_BUSINESS_VERIFICATION have active=false.
- * Only active=true entries are used for customer replies.
+ * Idempotent: uses category+question matching to avoid duplicates.
+ * Only active=true + confidence > 0.5 + non-placeholder entries are served.
+ *
+ * Data sources (merged, both idempotent):
+ *   1. Inline SEED_ENTRIES (base placeholders + 3 verified FAQs)
+ *   2. ../../data/kb-verified.json  (optional per-deployment verified data)
+ *      Copy data/kb-verified.example.json → data/kb-verified.json,
+ *      fill in real answers, and set active: true for verified entries.
  *
  * IMPORTANT: Do NOT activate placeholder entries without business confirmation.
- *            Copy the answer text from WhatsApp/tucuman to the entry only after
- *            Kamikaze Bikes has verified the information.
+ *            Only the business owner should fill in data/kb-verified.json.
  */
 
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 import prisma from '../config/database.js';
 
 const SEED_ENTRIES = [
@@ -168,13 +174,67 @@ const SEED_ENTRIES = [
   },
 ];
 
+/**
+ * Optional per-deployment verified KB entries from JSON.
+ * Returns empty array if the file doesn't exist (graceful degradation).
+ */
+function loadVerifiedEntries(): typeof SEED_ENTRIES {
+  // Resolve relative to backend cwd (seed script runs from backend/)
+  const jsonPath = resolve(process.cwd(), '../data/kb-verified.json');
+
+  if (!existsSync(jsonPath)) {
+    console.log('ℹ️  data/kb-verified.json not found — using only inline seed entries.');
+    return [];
+  }
+
+  try {
+    const raw = readFileSync(jsonPath, 'utf-8');
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      console.warn('⚠️  data/kb-verified.json is not an array — skipping.');
+      return [];
+    }
+
+    const entries: typeof SEED_ENTRIES = [];
+    for (const item of parsed) {
+      if (typeof item !== 'object' || item === null) continue;
+      const e = item as Record<string, unknown>;
+      if (!e.category || !e.answer) {
+        console.warn('⚠️  Skipping entry with missing category/answer:', e);
+        continue;
+      }
+
+      entries.push({
+        category: String(e.category),
+        question: typeof e.question === 'string' ? e.question : null,
+        answer: String(e.answer),
+        tags: Array.isArray(e.tags)
+          ? e.tags.map((t: unknown) => String(t))
+          : [],
+        confidence: typeof e.confidence === 'number' ? e.confidence : 0.3,
+        active: Boolean(e.active),
+      } as (typeof SEED_ENTRIES)[number]);
+    }
+
+    console.log(`📄 Loaded ${entries.length} entries from data/kb-verified.json`);
+    return entries;
+  } catch (err) {
+    console.warn('⚠️  Failed to parse data/kb-verified.json:', (err as Error).message);
+    return [];
+  }
+}
+
 async function seed() {
   console.log('🌱 Seeding knowledge base...');
+
+  // Merge inline entries + optional verified JSON entries
+  const allEntries = [...SEED_ENTRIES, ...loadVerifiedEntries()];
 
   let created = 0;
   let skipped = 0;
 
-  for (const entry of SEED_ENTRIES) {
+  for (const entry of allEntries) {
     // Upsert based on category + question (stable composite key)
     const existing = await prisma.knowledgeBaseEntry.findFirst({
       where: {
@@ -184,7 +244,7 @@ async function seed() {
     });
 
     if (existing) {
-      console.log(`  ⏭️  Skipping (exists): [${entry.category}] ${entry.question.substring(0, 40)}...`);
+      console.log(`  ⏭️  Skipping (exists): [${entry.category}] ${(entry.question ?? '').substring(0, 40)}...`);
       skipped++;
       continue;
     }
@@ -201,7 +261,7 @@ async function seed() {
     });
 
     const status = entry.active ? '✅' : '⚠️ ';
-    console.log(`  ${status} Created: [${entry.category}] ${entry.question.substring(0, 40)}... (active=${entry.active})`);
+    console.log(`  ${status} Created: [${entry.category}] ${(entry.question ?? '').substring(0, 40)}... (active=${entry.active})`);
     created++;
   }
 
@@ -213,7 +273,8 @@ async function seed() {
 
   console.log(`📊 Total entries: ${total} (${totalActive} active, ${totalInactive} inactive)`);
   console.log('\n⚠️  NOTE: Entries with active=false have NEEDS_BUSINESS_VERIFICATION.');
-  console.log('    Do NOT set active=true until Kamikaze Bikes has confirmed the information.');
+  console.log('    Do NOT set active=true until the business owner has confirmed the information.');
+  console.log('    Copy data/kb-verified.example.json → data/kb-verified.json to add verified entries.');
 }
 
 seed()

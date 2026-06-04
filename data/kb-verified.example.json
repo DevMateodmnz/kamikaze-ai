@@ -1,0 +1,75 @@
+[
+  {
+    "_comment": "Copy this file to data/kb-verified.json, fill in real answers, and set active: true for verified entries.",
+    "category": "store_info",
+    "question": "¿Cuáles son los horarios de atención?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["horarios", "atencion"],
+    "confidence": 0.3,
+    "active": false
+  },
+  {
+    "category": "store_info",
+    "question": "¿Dónde están ubicados?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["ubicacion", "direccion"],
+    "confidence": 0.3,
+    "active": false
+  },
+  {
+    "category": "store_info",
+    "question": "¿Tienen más de una sucursal?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["sucursales"],
+    "confidence": 0.3,
+    "active": false
+  },
+  {
+    "category": "store_info",
+    "question": "¿Qué medios de pago aceptan?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["pago", "tarjeta", "efectivo"],
+    "confidence": 0.3,
+    "active": false
+  },
+  {
+    "category": "store_info",
+    "question": "¿Hacen envíos a domicilio?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["envio", "entrega"],
+    "confidence": 0.3,
+    "active": false
+  },
+  {
+    "category": "policy",
+    "question": "¿Tiene garantía?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["garantia"],
+    "confidence": 0.3,
+    "active": false
+  },
+  {
+    "category": "policy",
+    "question": "¿Puedo devolver o cambiar?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["devolucion", "cambio"],
+    "confidence": 0.3,
+    "active": false
+  },
+  {
+    "category": "faq",
+    "question": "¿Cómo contacto un asesor humano?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["asesor", "humano", "contacto"],
+    "confidence": 0.3,
+    "active": false
+  },
+  {
+    "category": "faq",
+    "question": "¿Qué productos o servicios ofrecen?",
+    "answer": "NEEDS_BUSINESS_VERIFICATION",
+    "tags": ["productos", "servicios"],
+    "confidence": 0.3,
+    "active": false
+  }
+]

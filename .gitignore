@@ -50,3 +50,6 @@ backend/dist/
 
 # Local tool cache (OpenCode/Gentle AI)
 .atl/
+
+# Verified KB data (local file, filled per deployment — never commit real data)
+data/kb-verified.json

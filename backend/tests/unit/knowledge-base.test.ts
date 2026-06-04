@@ -227,3 +227,73 @@ describe('KB Integration Tests', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Verified KB data file (data/kb-verified.example.json)
+// ---------------------------------------------------------------------------
+
+import { existsSync, readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+describe('Verified KB data template', () => {
+  const scriptDir = dirname(fileURLToPath(import.meta.url));
+  const examplePath = resolve(scriptDir, '../../../data/kb-verified.example.json');
+
+  it('example JSON file exists', () => {
+    expect(existsSync(examplePath)).toBe(true);
+  });
+
+  it('example JSON is valid and parseable', () => {
+    const raw = readFileSync(examplePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(0);
+  });
+
+  it('all example entries are inactive (active: false)', () => {
+    const raw = readFileSync(examplePath, 'utf-8');
+    const entries = JSON.parse(raw) as Array<Record<string, unknown>>;
+    for (const entry of entries) {
+      expect(entry.active).toBe(false);
+    }
+  });
+
+  it('all example entries have required fields (category, answer)', () => {
+    const raw = readFileSync(examplePath, 'utf-8');
+    const entries = JSON.parse(raw) as Array<Record<string, unknown>>;
+    for (const entry of entries) {
+      expect(typeof entry.category).toBe('string');
+      expect(entry.category).toBeTruthy();
+      expect(typeof entry.answer).toBe('string');
+      expect(entry.answer).toBeTruthy();
+    }
+  });
+
+  it('no example entry contains real business facts (all are NEEDS_BUSINESS_VERIFICATION)', () => {
+    const raw = readFileSync(examplePath, 'utf-8');
+    const entries = JSON.parse(raw) as Array<Record<string, unknown>>;
+    for (const entry of entries) {
+      const answer = String(entry.answer);
+      expect(answer).toContain('NEEDS_BUSINESS_VERIFICATION');
+    }
+  });
+
+  it('no example entry has high confidence (all placeholder-level)', () => {
+    const raw = readFileSync(examplePath, 'utf-8');
+    const entries = JSON.parse(raw) as Array<Record<string, unknown>>;
+    for (const entry of entries) {
+      const c = Number(entry.confidence);
+      expect(c).toBeLessThanOrEqual(0.5);
+    }
+  });
+
+  it('covers all required KB categories', () => {
+    const raw = readFileSync(examplePath, 'utf-8');
+    const entries = JSON.parse(raw) as Array<Record<string, unknown>>;
+    const categories = new Set(entries.map((e) => e.category));
+    expect(categories.has('store_info')).toBe(true);
+    expect(categories.has('policy')).toBe(true);
+    expect(categories.has('faq')).toBe(true);
+  });
+});
