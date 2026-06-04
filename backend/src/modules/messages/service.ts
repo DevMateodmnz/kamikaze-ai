@@ -18,6 +18,7 @@ import { aiGatewayRouter } from '../ai-gateway/router.js';
 import type { Intent as AiIntent } from '../ai-gateway/types.js';
 import { validateAiReply } from './ai-reply-guardrails.js';
 import { buildAiReplyContext } from './ai-reply-context.js';
+import { attemptWhatsAppDelivery } from './whatsapp-sender.js';
 
 /**
  * Input for storing an inbound message
@@ -361,6 +362,11 @@ export async function processInboundMessage(
       tokensUsed: 0,
     });
     outboundMessageId = outbound.id;
+
+    // Attempt WhatsApp delivery (disabled by default — WHATSAPP_OUTBOUND_ENABLED=false)
+    // Store-first: outbound message is persisted before delivery attempt.
+    // Delivery failure does NOT break processing — message is already stored.
+    await attemptWhatsAppDelivery(replyTextToStore, result.customer.phone);
   }
 
   // If action is escalate, update conversation status and create escalation record

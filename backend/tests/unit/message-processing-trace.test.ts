@@ -20,6 +20,12 @@ vi.mock('../../src/modules/ai-gateway/router.js', () => ({
   },
 }));
 
+// Mock whatsapp-sender to verify integration without real API calls
+const mockWhatsAppSender = {
+  attemptWhatsAppDelivery: vi.fn().mockResolvedValue({ sent: false, reason: 'disabled' as const }),
+};
+vi.mock('../../src/modules/messages/whatsapp-sender.js', () => mockWhatsAppSender);
+
 import { aiGatewayRouter } from '../../src/modules/ai-gateway/router.js';
 
 // ---------------------------------------------------------------------------
@@ -639,5 +645,138 @@ describe('processInboundMessage — trace integration tests', () => {
 
     expect(dupResult.duplicate).toBe(true);
     expect(dupResult.processing).toBeNull(); // no trace for duplicates
+  });
+
+  // ── WhatsApp outbound delivery integration ────────────────────────
+
+  it('attemptWhatsAppDelivery is called after outbound message storage', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'test-token');
+    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '123456');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockWhatsAppSender.attemptWhatsAppDelivery.mockResolvedValueOnce({
+      sent: true,
+      reason: 'delivered',
+    });
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'greeting',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812365${testTimestamp}`,
+      text: 'Hola',
+    });
+
+    // Verify outbound was stored (outboundMessageId present → store-first)
+    expect(result.processing!.outboundMessageId).toBeTruthy();
+
+    // Verify sender was called with correct content
+    expect(mockWhatsAppSender.attemptWhatsAppDelivery).toHaveBeenCalledTimes(1);
+    const [content, to] = mockWhatsAppSender.attemptWhatsAppDelivery.mock.calls[0] as [string, string];
+    expect(typeof content).toBe('string');
+    expect(content.length).toBeGreaterThan(0);
+    expect(to).toBe(`+5493812365${testTimestamp}`);
+
+    vi.unstubAllEnvs();
+  });
+
+  it('with WHATSAPP_OUTBOUND_ENABLED=false, sender returns disabled and processing succeeds', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'false');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'greeting',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812366${testTimestamp}`,
+      text: 'Hola',
+    });
+
+    // Processing succeeds
+    expect(result.success).toBe(true);
+    expect(result.processing).not.toBeNull();
+    expect(result.processing!.outboundMessageId).toBeTruthy();
+
+    vi.unstubAllEnvs();
+  });
+
+  it('delivery failure does not break processInboundMessage', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'test-token');
+    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '123456');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    // Simulate delivery failure
+    mockWhatsAppSender.attemptWhatsAppDelivery.mockResolvedValueOnce({
+      sent: false,
+      reason: 'delivery_failed',
+    });
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'greeting',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812367${testTimestamp}`,
+      text: 'Hola',
+    });
+
+    // Processing still succeeds even though delivery failed
+    expect(result.success).toBe(true);
+    expect(result.processing).not.toBeNull();
+    // Outbound message was stored (store-first pattern)
+    expect(result.processing!.outboundMessageId).toBeTruthy();
+
+    vi.unstubAllEnvs();
+  });
+
+  it('escalation path does not attempt WhatsApp delivery', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'test-token');
+    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '123456');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockWhatsAppSender.attemptWhatsAppDelivery.mockClear();
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'complaint',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    await processInboundMessage({
+      from: `+5493812368${testTimestamp}`,
+      text: 'Estoy enojado con el servicio',
+    });
+
+    // Escalation path → no outbound reply → no delivery attempt
+    expect(mockWhatsAppSender.attemptWhatsAppDelivery).not.toHaveBeenCalled();
+
+    vi.unstubAllEnvs();
   });
 });
