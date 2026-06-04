@@ -5,7 +5,7 @@
  */
 
 import { prisma } from '../../config/database.js';
-import type { StoredMessage } from './types.js';
+import type { StoredMessage, MessageProcessingTrace } from './types.js';
 import { customersService } from '../customers/service.js';
 import { conversationsService } from '../conversations/service.js';
 import { detectIntent } from '../intent-detection/detector.js';
@@ -258,6 +258,8 @@ export interface ProcessMessageResult {
     escalationReason: string | null;
     outboundMessageId: string | null;
     escalationId: string | null;
+    /** Internal trace metadata for auditability. Not exposed to customers. */
+    trace: MessageProcessingTrace | null;
   } | null;
 }
 
@@ -303,8 +305,16 @@ export async function processInboundMessage(
   // Make decision
   const decision = makeDecision(detection.intent, detection.confidence);
 
+  // Trace metadata — collected during processing
+  const aiReplyEnabled = process.env['AI_REPLIES_ENABLED'] === 'true';
+  const intentSource = detection.intentSource ?? 'deterministic';
+  let aiUsed = intentSource === 'ai';
+
   // If action is reply, check if we have verified KB data for this intent
   let outboundMessageId: string | null = null;
+  let replySource: MessageProcessingTrace['replySource'] = null;
+  let knowledgeBaseEntryId: string | undefined;
+
   if (decision.action === 'reply' && decision.replyText) {
     // Try AI-generated reply for safe intents when enabled
     const aiReply = await generateReplyWithFallback({
@@ -319,10 +329,19 @@ export async function processInboundMessage(
     if (aiReply) {
       replyTextToStore = aiReply.replyText;
       replyAiProvider = aiReply.aiProvider;
+      replySource = 'ai';
+      aiUsed = true;
     } else {
       // Fallback: KB answer or deterministic template
       const kbAnswer = await getVerifiedAnswerForIntent(detection.intent);
-      replyTextToStore = kbAnswer ? kbAnswer.answer : decision.replyText;
+      if (kbAnswer) {
+        replyTextToStore = kbAnswer.answer;
+        replySource = 'knowledge_base';
+        knowledgeBaseEntryId = kbAnswer.entryId;
+      } else {
+        replyTextToStore = decision.replyText;
+        replySource = 'template';
+      }
       replyAiProvider = 'deterministic';
     }
 
@@ -356,7 +375,18 @@ export async function processInboundMessage(
       suggestedReply: null,
     });
     escalationId = escalation.id;
+    replySource = 'escalation';
   }
+
+  const trace: MessageProcessingTrace = {
+    intent: detection.intent,
+    intentSource,
+    replySource,
+    aiUsed,
+    aiReplyEnabled,
+    confidence: detection.confidence,
+    ...(knowledgeBaseEntryId && { knowledgeBaseEntryId }),
+  };
 
   return {
     success: true,
@@ -372,6 +402,7 @@ export async function processInboundMessage(
       escalationReason: decision.escalationReason,
       outboundMessageId,
       escalationId,
+      trace,
     },
   };
 }
@@ -437,13 +468,17 @@ export async function classifyIntentWithFallback(
         intent: mappedIntent,
         confidence: aiResult.confidence,
         matchedKeywords: [],
+        intentSource: 'ai',
       };
     }
   } catch {
     // AI failed — fall through to deterministic
   }
 
-  return deterministicResult;
+  return {
+    ...deterministicResult,
+    intentSource: 'fallback',
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -23,6 +23,8 @@ export interface IntentDetectionResult {
   intent: Intent;
   confidence: number;
   matchedKeywords: string[];
+  /** Source of the intent classification: AI, deterministic, or fallback. */
+  intentSource?: 'deterministic' | 'ai' | 'fallback';
 }
 
 /**

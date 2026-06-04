@@ -32,3 +32,31 @@ export interface StoredMessage {
   whatsappMessageId: string | null;
   createdAt: Date;
 }
+
+// ---------------------------------------------------------------------------
+// Message processing trace types (internal auditability)
+// ---------------------------------------------------------------------------
+
+/** Source of the intent classification. */
+export type IntentSource = 'deterministic' | 'ai' | 'fallback';
+
+/** Source of the reply text sent to the customer. */
+export type ReplySource = 'template' | 'knowledge_base' | 'ai' | 'fallback' | 'escalation';
+
+/** Internal trace metadata for message processing auditability. */
+export interface MessageProcessingTrace {
+  /** Detected intent label. */
+  intent: string;
+  /** How the intent was classified. */
+  intentSource: IntentSource;
+  /** How the reply text was chosen. Null if no reply was sent (escalation or duplicate). */
+  replySource: ReplySource | null;
+  /** Whether AI was involved at all (classification OR reply generation). */
+  aiUsed: boolean;
+  /** Whether the AI_REPLIES_ENABLED feature flag was active. */
+  aiReplyEnabled: boolean;
+  /** KB entry ID if a verified knowledge base entry was used. */
+  knowledgeBaseEntryId?: string;
+  /** Confidence score from intent detection. */
+  confidence?: number;
+}

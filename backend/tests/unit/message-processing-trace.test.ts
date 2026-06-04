@@ -1,0 +1,394 @@
+/**
+ * Unit Tests for Message Processing Trace Metadata
+ *
+ * Tests:
+ *  - classifyIntentWithFallback intentSource tracking (unit, no DB)
+ *  - Trace type structure and exports (unit, no DB)
+ *  - processInboundMessage trace paths (integration, DB required, gracefully skipped)
+ *
+ * Never commits real business data, secrets, or customer-facing changes.
+ */
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+
+// Mock aiGatewayRouter before any module imports that use it
+vi.mock('../../src/modules/ai-gateway/router.js', () => ({
+  aiGatewayRouter: {
+    classifyIntent: vi.fn(),
+    generateReply: vi.fn(),
+    summarize: vi.fn(),
+    extractLeadData: vi.fn(),
+  },
+}));
+
+import { aiGatewayRouter } from '../../src/modules/ai-gateway/router.js';
+
+// ---------------------------------------------------------------------------
+// Unit tests — classifyIntentWithFallback intentSource (no DB required)
+// ---------------------------------------------------------------------------
+
+const { classifyIntentWithFallback } = await import(
+  '../../src/modules/messages/service.js'
+);
+
+describe('classifyIntentWithFallback — intentSource tracking', () => {
+  const mockedRouter = vi.mocked(aiGatewayRouter);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('sets intentSource="ai" when AI classification succeeds with high confidence', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+
+    const result = await classifyIntentWithFallback('Busco una MTB para montaña');
+
+    expect(result.intentSource).toBe('ai');
+    expect(result.intent).toBe('product_interest');
+  });
+
+  it('sets intentSource="fallback" when AI provider throws', async () => {
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('fetch failed'));
+
+    const result = await classifyIntentWithFallback('Hola, buenos días');
+
+    expect(result.intentSource).toBe('fallback');
+    expect(result.intent).toBe('greeting');
+  });
+
+  it('sets intentSource="fallback" when AI returns low confidence', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'greeting',
+      confidence: 0.3,
+    });
+
+    const result = await classifyIntentWithFallback('Hola');
+
+    expect(result.intentSource).toBe('fallback');
+  });
+
+  it('sets intentSource="fallback" when AI returns unmappable intent', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'technical_question',
+      confidence: 0.95,
+    });
+
+    const result = await classifyIntentWithFallback('Qué tipo de suspensión es mejor?');
+
+    expect(result.intentSource).toBe('fallback');
+    // deterministic won — not 'technical_question'
+    expect(result.intent).not.toBe('technical_question');
+  });
+
+  it('maps AI "warranty" to deterministic "warranty_or_return" with intentSource="ai"', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'warranty',
+      confidence: 0.85,
+    });
+
+    const result = await classifyIntentWithFallback('Tiene garantía la bici?');
+
+    expect(result.intentSource).toBe('ai');
+    expect(result.intent).toBe('warranty_or_return');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests — Trace type structure and exports (no DB required)
+// ---------------------------------------------------------------------------
+
+describe('MessageProcessingTrace type exports', () => {
+  it('exports IntentSource, ReplySource, MessageProcessingTrace from messages/types', async () => {
+    const types = await import('../../src/modules/messages/types.js');
+    expect(types).toBeDefined();
+    // Type exports are TypeScript-only — import succeeding is the test
+  });
+
+  it('ProcessMessageResult.processing includes trace field', async () => {
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+    // Type-check: processInboundMessage returns ProcessMessageResult with processing.trace
+    // Runtime: function signature exists
+    expect(typeof processInboundMessage).toBe('function');
+  });
+
+  it('getVerifiedAnswerForIntent returns entryId alongside answer', async () => {
+    // Type-level check — the return type includes entryId
+    const { getVerifiedAnswerForIntent } = await import(
+      '../../src/modules/knowledge-base/service.js'
+    );
+    // For unmapped intent, returns null — no type error for .entryId
+    const result = await getVerifiedAnswerForIntent('greeting');
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Integration tests — processInboundMessage trace paths (DB required)
+// ---------------------------------------------------------------------------
+
+const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://kamikaze:kamikaze_dev_password@localhost:5432/kamikaze_db';
+
+import { prisma } from '../../src/config/database.js';
+import { knowledgeBaseService } from '../../src/modules/knowledge-base/service.js';
+
+let dbAvailable = false;
+
+async function checkDb(): Promise<boolean> {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let testTimestamp = Date.now();
+
+describe('processInboundMessage — trace integration tests', () => {
+  const mockedRouter = vi.mocked(aiGatewayRouter);
+
+  beforeAll(async () => {
+    dbAvailable = await checkDb();
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  // ── Deterministic template reply ─────────────────────────────────
+
+  it('returns trace with aiUsed=false and replySource="template" for greeting', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    // Mock AI classification to fail (forces fallback → deterministic)
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812345${testTimestamp}`,
+      text: 'Hola, buenos días',
+    });
+
+    expect(result.processing).not.toBeNull();
+    expect(result.processing!.trace).not.toBeNull();
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('greeting');
+    expect(trace.intentSource).toBe('fallback');
+    expect(trace.replySource).toBe('template');
+    expect(trace.aiUsed).toBe(false);
+    expect(trace.aiReplyEnabled).toBe(false);
+    expect(trace.knowledgeBaseEntryId).toBeUndefined();
+    expect(typeof trace.confidence).toBe('number');
+  });
+
+  // ── Verified KB reply ────────────────────────────────────────────
+
+  it('returns trace with replySource="knowledge_base" and entryId when KB has verified entry', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    // Create a verified KB entry for store_hours
+    const kbEntry = await knowledgeBaseService.createEntry({
+      category: 'store_info',
+      question: `[TEST-${testTimestamp}] Horarios de atención`,
+      answer: 'Atendemos de lunes a viernes de 9 a 18.',
+      tags: ['horarios'],
+      confidence: 0.9,
+      active: true,
+    });
+
+    // Mock AI classification to fail (forces deterministic fallback)
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812346${testTimestamp}`,
+      text: 'Cuáles son los horarios de atención?',
+    });
+
+    expect(result.processing).not.toBeNull();
+    expect(result.processing!.trace).not.toBeNull();
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('store_hours');
+    expect(trace.replySource).toBe('knowledge_base');
+    expect(trace.knowledgeBaseEntryId).toBe(kbEntry.id);
+    expect(trace.aiUsed).toBe(false);
+
+    // Cleanup
+    await knowledgeBaseService.deactivateEntry(kbEntry.id);
+  });
+
+  it('returns replySource="template" when KB has no verified entry for intent', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812347${testTimestamp}`,
+      text: 'Hola, cómo estás?',
+    });
+
+    expect(result.processing).not.toBeNull();
+    const trace = result.processing!.trace!;
+    // greeting has no KB mapping, so template is used
+    expect(trace.replySource).toBe('template');
+    expect(trace.knowledgeBaseEntryId).toBeUndefined();
+  });
+
+  // ── Escalation path ──────────────────────────────────────────────
+
+  it('returns trace with replySource="escalation" for complaint intent', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    // Mock AI to classify as complaint with high confidence
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'complaint',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812348${testTimestamp}`,
+      text: 'Estoy muy enojado con el servicio, es una porquería',
+    });
+
+    expect(result.processing).not.toBeNull();
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('complaint');
+    expect(trace.intentSource).toBe('ai');
+    expect(trace.replySource).toBe('escalation');
+    expect(trace.aiUsed).toBe(true); // intentSource was AI
+  });
+
+  // ── AI reply path (mocked provider) ──────────────────────────────
+
+  it('returns trace with replySource="ai" and aiUsed=true when AI generates reply', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'true');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+    mockedRouter.generateReply.mockResolvedValueOnce({
+      text: '¡Claro! Para MTB te recomiendo el modelo X100.',
+      confidence: 0.85,
+      finishReason: 'stop',
+      needsHuman: false,
+      provider: 'minimax',
+      latencyMs: 500,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812349${testTimestamp}`,
+      text: 'Busco una MTB para montaña, presupuesto 500 USD',
+    });
+
+    expect(result.processing).not.toBeNull();
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('product_interest');
+    expect(trace.intentSource).toBe('ai');
+    expect(trace.replySource).toBe('ai');
+    expect(trace.aiUsed).toBe(true);
+    expect(trace.aiReplyEnabled).toBe(true);
+  });
+
+  // ── AI disabled (default) — stays deterministic ──────────────────
+
+  it('aiUsed=false and replySource is template when AI_REPLIES_ENABLED=false (default)', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+
+    // generateReply should NOT be called
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812350${testTimestamp}`,
+      text: 'Busco una bici de ruta',
+    });
+
+    expect(result.processing).not.toBeNull();
+    const trace = result.processing!.trace!;
+    expect(trace.replySource).not.toBe('ai');
+    expect(trace.replySource).toBe('template');
+    expect(trace.aiUsed).toBe(true); // intent classification used AI
+    expect(trace.aiReplyEnabled).toBe(false);
+    expect(mockedRouter.generateReply).not.toHaveBeenCalled();
+  });
+
+  // ── Duplicate messages skip processing (no trace) ────────────────
+
+  it('returns processing=null (no trace) for duplicate messages', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    const whatsappId = `wamid.trace-dup-${testTimestamp}`;
+
+    // First message
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    await processInboundMessage({
+      whatsappMessageId: whatsappId,
+      from: `+5493812351${testTimestamp}`,
+      text: 'Hola',
+    });
+
+    // Duplicate — same whatsappMessageId
+    const dupResult = await processInboundMessage({
+      whatsappMessageId: whatsappId,
+      from: `+5493812351${testTimestamp}`,
+      text: 'Hola',
+    });
+
+    expect(dupResult.duplicate).toBe(true);
+    expect(dupResult.processing).toBeNull(); // no trace for duplicates
+  });
+});

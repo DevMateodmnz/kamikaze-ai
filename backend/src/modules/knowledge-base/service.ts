@@ -258,7 +258,7 @@ export async function deactivateEntry(id: string): Promise<KnowledgeEntry> {
  */
 export async function getVerifiedAnswerForIntent(
   intent: string
-): Promise<{ answer: string } | null> {
+): Promise<{ answer: string; entryId: string } | null> {
   // Map intent to KB categories/tags
   const intentToCategoryMap: Record<string, string> = {
     store_hours: 'store_info',
@@ -295,7 +295,7 @@ export async function getVerifiedAnswerForIntent(
     return null;
   }
 
-  return { answer: entry.answer };
+  return { answer: entry.answer, entryId: entry.id };
 }
 
 // ============================================
