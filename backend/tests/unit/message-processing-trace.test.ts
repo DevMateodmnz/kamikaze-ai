@@ -268,6 +268,250 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(trace.knowledgeBaseEntryId).toBeUndefined();
   });
 
+  // ── KB preference over templates (all KB-mapped safe reply intents) ──
+
+  it('prefers KB answer over template for store_hours when verified entry exists', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    const kbEntry = await knowledgeBaseService.createEntry({
+      category: 'store_info',
+      question: `[TEST-${testTimestamp}] Horarios verificados`,
+      answer: 'HORARIO_VERIFICADO: Lunes a viernes 9-18.',
+      tags: ['horarios'],
+      confidence: 1.0,
+      active: true,
+    });
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812355${testTimestamp}`,
+      text: 'A qué hora abren?',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('store_hours');
+    expect(trace.replySource).toBe('knowledge_base');
+    expect(trace.knowledgeBaseEntryId).toBe(kbEntry.id);
+    // Verify the actual reply text is from KB, not the template
+    const outboundMsg = await prisma.message.findUnique({
+      where: { id: result.processing!.outboundMessageId! },
+    });
+    expect(outboundMsg!.content).toBe('HORARIO_VERIFICADO: Lunes a viernes 9-18.');
+    // Template would be "Nuestros horarios de atención son de lunes a sábado..."
+    expect(outboundMsg!.content).not.toContain('sábado'); // template has sábado, KB doesn't
+
+    await knowledgeBaseService.deactivateEntry(kbEntry.id);
+  });
+
+  it('prefers KB answer over template for store_location when verified entry exists', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    const kbEntry = await knowledgeBaseService.createEntry({
+      category: 'store_info',
+      question: `[TEST-${testTimestamp}] Ubicación verificada`,
+      answer: 'UBICACION_VERIFICADA: Av. Siempre Viva 742, San Miguel de Tucumán.',
+      tags: ['ubicacion'],
+      confidence: 1.0,
+      active: true,
+    });
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812356${testTimestamp}`,
+      text: 'Dónde están ubicados?',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('store_location');
+    expect(trace.replySource).toBe('knowledge_base');
+    expect(trace.knowledgeBaseEntryId).toBe(kbEntry.id);
+
+    const outboundMsg = await prisma.message.findUnique({
+      where: { id: result.processing!.outboundMessageId! },
+    });
+    expect(outboundMsg!.content).toBe('UBICACION_VERIFICADA: Av. Siempre Viva 742, San Miguel de Tucumán.');
+
+    await knowledgeBaseService.deactivateEntry(kbEntry.id);
+  });
+
+  it('prefers KB answer over template for payment_methods when verified entry exists', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    const kbEntry = await knowledgeBaseService.createEntry({
+      category: 'store_info',
+      question: `[TEST-${testTimestamp}] Pagos verificados`,
+      answer: 'PAGOS_VERIFICADOS: Efectivo, débito, crédito 3 cuotas.',
+      tags: ['pago'],
+      confidence: 0.9,
+      active: true,
+    });
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812357${testTimestamp}`,
+      text: 'Qué medios de pago aceptan?',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('payment_methods');
+    expect(trace.replySource).toBe('knowledge_base');
+    expect(trace.knowledgeBaseEntryId).toBe(kbEntry.id);
+
+    const outboundMsg = await prisma.message.findUnique({
+      where: { id: result.processing!.outboundMessageId! },
+    });
+    expect(outboundMsg!.content).toBe('PAGOS_VERIFICADOS: Efectivo, débito, crédito 3 cuotas.');
+
+    await knowledgeBaseService.deactivateEntry(kbEntry.id);
+  });
+
+  it('prefers KB answer over template for shipping when verified entry exists', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    const kbEntry = await knowledgeBaseService.createEntry({
+      category: 'store_info',
+      question: `[TEST-${testTimestamp}] Envíos verificados`,
+      answer: 'ENVIOS_VERIFICADOS: Envío gratis en San Miguel de Tucumán.',
+      tags: ['envio'],
+      confidence: 1.0,
+      active: true,
+    });
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812358${testTimestamp}`,
+      text: 'Hacen envíos a domicilio?',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('shipping');
+    expect(trace.replySource).toBe('knowledge_base');
+    expect(trace.knowledgeBaseEntryId).toBe(kbEntry.id);
+
+    const outboundMsg = await prisma.message.findUnique({
+      where: { id: result.processing!.outboundMessageId! },
+    });
+    expect(outboundMsg!.content).toBe('ENVIOS_VERIFICADOS: Envío gratis en San Miguel de Tucumán.');
+
+    await knowledgeBaseService.deactivateEntry(kbEntry.id);
+  });
+
+  // ── KB safety: inactive/unverified/placeholder entries are ignored ──
+
+  it('falls back to template when KB entry is inactive', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    await knowledgeBaseService.createEntry({
+      category: 'store_info',
+      question: `[TEST-${testTimestamp}] Inactive hours`,
+      answer: 'Horarios inactivos — no debería usarse.',
+      tags: ['horarios'],
+      confidence: 0.9,
+      active: false, // INACTIVE
+    });
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812359${testTimestamp}`,
+      text: 'Cuáles son los horarios?',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('store_hours');
+    expect(trace.replySource).toBe('template'); // inactive → template
+    expect(trace.knowledgeBaseEntryId).toBeUndefined();
+  });
+
+  it('falls back to template when KB entry has placeholder marker', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    await knowledgeBaseService.createEntry({
+      category: 'store_info',
+      question: `[TEST-${testTimestamp}] Placeholder hours`,
+      answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar horarios.',
+      tags: ['horarios'],
+      confidence: 0.9,
+      active: true, // Active but placeholder → should be filtered
+    });
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812360${testTimestamp}`,
+      text: 'A qué hora abren?',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('store_hours');
+    expect(trace.replySource).toBe('template'); // placeholder → template
+    expect(trace.knowledgeBaseEntryId).toBeUndefined();
+  });
+
+  it('falls back to template when KB entry has low confidence', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    await knowledgeBaseService.createEntry({
+      category: 'store_info',
+      question: `[TEST-${testTimestamp}] Low confidence hours`,
+      answer: 'Horarios con baja confianza — no debería usarse.',
+      tags: ['horarios'],
+      confidence: 0.3, // Must be > 0.5 to be served
+      active: true,
+    });
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812361${testTimestamp}`,
+      text: 'Cuáles son los horarios?',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.intent).toBe('store_hours');
+    expect(trace.replySource).toBe('template'); // low confidence → template
+    expect(trace.knowledgeBaseEntryId).toBeUndefined();
+  });
+
   // ── Escalation path ──────────────────────────────────────────────
 
   it('returns trace with replySource="escalation" for complaint intent', async () => {

@@ -270,7 +270,10 @@ export interface ProcessMessageResult {
  * 2. Skip processing for duplicates
  * 3. Classify intent (AI + deterministic fallback)
  * 4. Make decision (reply / escalate)
- * 5. If reply: store outbound message (KB answer or template)
+ * 5. If reply: select reply text in priority order:
+ *    a) AI-generated reply (only if AI_REPLIES_ENABLED=true + safe intent)
+ *    b) Verified KB answer (preferred over template when available)
+ *    c) Deterministic template (from decision engine)
  * 6. If escalate: update conversation + create escalation record
  *
  * This is the reusable core — called by both the /messages/process
@@ -311,7 +314,10 @@ export async function processInboundMessage(
   const aiIntentUsed = intentSource === 'ai';
   let aiReplyUsed = false;
 
-  // If action is reply, check if we have verified KB data for this intent
+  // If action is reply, select the reply text in priority order:
+  // 1. AI-generated reply (only if AI_REPLIES_ENABLED=true + safe intent)
+  // 2. Verified KB answer (only if active, confidence>0.5, no placeholder)
+  // 3. Deterministic template (from decision engine)
   let outboundMessageId: string | null = null;
   let replySource: MessageProcessingTrace['replySource'] = null;
   let knowledgeBaseEntryId: string | undefined;
