@@ -148,6 +148,9 @@
   {
     "_scenario": "17-conversation-sequence-customer-a-msg1",
     "_description": "Multi-turn conversation: same phone number, message 1 of 3. Should accumulate in same conversation.",
+    "_expectedIntent": "product_interest",
+    "_expectedReplySource": "template",
+    "_runnerNote": "Multi-turn: send fixtures 17→18→19 sequentially. All 3 must share same conversationId.",
     "from": "+5490000000020",
     "text": "Hola, estoy buscando una bicicleta",
     "timestamp": "1700000020"
@@ -155,6 +158,8 @@
   {
     "_scenario": "18-conversation-sequence-customer-a-msg2",
     "_description": "Multi-turn conversation: same phone number, message 2 of 3.",
+    "_expectedIntent": "product_interest",
+    "_expectedReplySource": "template",
     "from": "+5490000000020",
     "text": "Me interesa una de ruta, algo liviano",
     "timestamp": "1700000021"
@@ -162,6 +167,8 @@
   {
     "_scenario": "19-conversation-sequence-customer-a-msg3",
     "_description": "Multi-turn conversation: same phone number, message 3 of 3.",
+    "_expectedIntent": "thanks",
+    "_expectedReplySource": "template",
     "from": "+5490000000020",
     "text": "Gracias, después les escribo",
     "timestamp": "1700000022"

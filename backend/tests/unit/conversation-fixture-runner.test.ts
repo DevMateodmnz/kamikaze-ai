@@ -160,6 +160,78 @@ describe('Conversation fixture runner', () => {
     });
   }
 
+  // ── Multi-turn conversation ────────────────────────────────────────
+
+  it('processes fixtures 17→18→19 sequentially and accumulates in same conversation', async () => {
+    if (!dbAvailable) return;
+
+    const multiFixtures = [
+      allFixtures.find((f) => f._scenario === '17-conversation-sequence-customer-a-msg1'),
+      allFixtures.find((f) => f._scenario === '18-conversation-sequence-customer-a-msg2'),
+      allFixtures.find((f) => f._scenario === '19-conversation-sequence-customer-a-msg3'),
+    ];
+
+    // Verify all 3 fixtures exist and share the same phone
+    expect(multiFixtures.every((f) => f != null)).toBe(true);
+    const phones = new Set(multiFixtures.map((f) => f!.from));
+    expect(phones.size).toBe(1);
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const results: Awaited<ReturnType<typeof processInboundMessage>>[] = [];
+    for (const fixture of multiFixtures) {
+      const aiMockIntent = mapExpectedIntentToAi(fixture!._expectedIntent!);
+      if (aiMockIntent) {
+        mockedRouter.classifyIntent.mockResolvedValueOnce({
+          intent: aiMockIntent,
+          confidence: 0.9,
+        });
+      } else {
+        mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('unmappable'));
+      }
+
+      results.push(
+        await processInboundMessage({
+          from: fixture!.from,
+          text: fixture!.text,
+        })
+      );
+    }
+
+    // All 3 must have processing (no duplicates)
+    for (const r of results) {
+      expect(r.duplicate).toBe(false);
+      expect(r.processing).not.toBeNull();
+    }
+
+    // Trace assertions per message
+    expect(results[0]!.processing!.trace!.intent).toBe(
+      multiFixtures[0]!._expectedIntent
+    );
+    expect(results[1]!.processing!.trace!.intent).toBe(
+      multiFixtures[1]!._expectedIntent
+    );
+    expect(results[2]!.processing!.trace!.intent).toBe(
+      multiFixtures[2]!._expectedIntent
+    );
+
+    for (const r of results) {
+      const trace = r.processing!.trace!;
+      expect(trace.aiReplyEnabled).toBe(false);
+      expect(trace.aiReplyUsed).toBe(false);
+      expect(trace.replySource).toBe('template');
+    }
+
+    // All 3 share the same conversationId (same phone → same conversation)
+    const convIds = new Set(results.map((r) => r.conversationId));
+    expect(convIds.size).toBe(1);
+
+    // generateReply never called
+    expect(mockedRouter.generateReply).not.toHaveBeenCalled();
+  });
+
   // ── Duplicate idempotency ──────────────────────────────────────────
 
   it('duplicate message returns processing=null on second send', async () => {
