@@ -1,19 +1,21 @@
 /**
  * AI Gateway Router
  *
- * Routes AI requests to the appropriate provider based on configuration.
- *
- * NOT IMPLEMENTED - This is a scaffold for Phase 3
+ * Routes AI requests to the configured provider.
+ * Provider selection is controlled by the AI_PROVIDER environment variable.
  *
  * Responsibilities:
  * - Select primary provider based on AI_PROVIDER env var
- * - Handle fallback when primary fails
- * - Apply guardrails (confidence threshold, risky content)
- * - Log all AI interactions
- * - Track costs
+ * - Delegate all AI operations to the selected provider
+ * - Apply guardrails (to be added in a future PR)
+ * - Handle fallback when primary fails (to be added in a future PR)
+ * - Log all AI interactions (to be added in a future PR)
+ * - Track costs (to be added in a future PR)
  */
 
 import type {
+  AiProvider,
+  AiProviderName,
   GenerateReplyInput,
   GenerateReplyOutput,
   ClassifyIntentInput,
@@ -23,43 +25,31 @@ import type {
   ExtractLeadDataInput,
   ExtractLeadDataOutput,
 } from './types.js';
-import { AppError } from '../../utils/app-error.js';
+import { createAiProvider } from './factory.js';
 
-/**
- * Placeholder router that throws NotImplemented
- *
- * In Phase 3, this will:
- * - Load provider based on AI_PROVIDER env var
- * - Call provider.generateReply() etc.
- * - Apply guardrails
- * - Handle fallback
- */
+function getProvider(): AiProvider {
+  const name = (process.env['AI_PROVIDER'] ?? 'minimax') as AiProviderName;
+  return createAiProvider(name);
+}
+
 export const aiGatewayRouter = {
-  async generateReply(_input: GenerateReplyInput): Promise<GenerateReplyOutput> {
-    throw new AppError('AI Gateway not implemented yet', {
-      statusCode: 501,
-      code: 'AI_NOT_IMPLEMENTED',
-    });
+  async generateReply(input: GenerateReplyInput): Promise<GenerateReplyOutput> {
+    const provider = getProvider();
+    return provider.generateReply(input);
   },
 
-  async classifyIntent(_input: ClassifyIntentInput): Promise<ClassifyIntentOutput> {
-    throw new AppError('AI Gateway not implemented yet', {
-      statusCode: 501,
-      code: 'AI_NOT_IMPLEMENTED',
-    });
+  async classifyIntent(input: ClassifyIntentInput): Promise<ClassifyIntentOutput> {
+    const provider = getProvider();
+    return provider.classifyIntent(input);
   },
 
-  async summarize(_input: SummarizeConversationInput): Promise<SummarizeConversationOutput> {
-    throw new AppError('AI Gateway not implemented yet', {
-      statusCode: 501,
-      code: 'AI_NOT_IMPLEMENTED',
-    });
+  async summarize(input: SummarizeConversationInput): Promise<SummarizeConversationOutput> {
+    const provider = getProvider();
+    return provider.summarize(input);
   },
 
-  async extractLeadData(_input: ExtractLeadDataInput): Promise<ExtractLeadDataOutput> {
-    throw new AppError('AI Gateway not implemented yet', {
-      statusCode: 501,
-      code: 'AI_NOT_IMPLEMENTED',
-    });
+  async extractLeadData(input: ExtractLeadDataInput): Promise<ExtractLeadDataOutput> {
+    const provider = getProvider();
+    return provider.extractLeadData(input);
   },
 };

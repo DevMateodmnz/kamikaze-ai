@@ -12,3 +12,6 @@ process.env.AI_MIN_CONFIDENCE_THRESHOLD = '0.6';
 process.env.AI_TIMEOUT_MS = '20000';
 process.env.AI_MAX_TOKENS_REPLY = '400';
 process.env.AI_MAX_TOKENS_INTENT = '100';
+process.env.MINIMAX_API_KEY = 'test-minimax-key';
+process.env.MINIMAX_MODEL = 'MiniMax-Text-01';
+process.env.MINIMAX_API_BASE_URL = 'https://test-api.example.com/v1';

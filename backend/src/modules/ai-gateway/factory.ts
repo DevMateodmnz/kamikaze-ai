@@ -3,20 +3,44 @@
  *
  * Creates AI provider instances based on configuration.
  *
- * NOT IMPLEMENTED - This is a scaffold for Phase 3
- *
  * Usage:
- * const provider = createAiProvider('minimax');
+ *   const provider = createAiProvider('minimax');
+ *
+ * Provider selection is driven by the AiProviderName argument,
+ * which should come from AI_PROVIDER env var or config.
  */
 
 import type { AiProvider, AiProviderName } from './types.js';
+import { MiniMaxProvider } from './providers/minimax.js';
+
+const providerConstructors: Record<
+  AiProviderName,
+  (() => AiProvider) | undefined
+> = {
+  minimax: () => new MiniMaxProvider(),
+  openai: undefined,
+  gemini: undefined,
+  anthropic: undefined,
+  local: undefined,
+};
 
 /**
- * Throws - implementation pending in Phase 3
+ * Create an AI provider instance by name.
+ *
+ * @throws {Error} If the provider is not yet implemented.
  */
 export function createAiProvider(name: AiProviderName): AiProvider {
-  throw new Error(
-    `AI provider '${name}' not implemented. ` +
-      'Providers will be implemented in Phase 3 (PR-011).'
-  );
+  const factory = providerConstructors[name];
+
+  if (!factory) {
+    throw new Error(
+      `AI provider '${name}' is not implemented yet. ` +
+        `Available providers: ${Object.entries(providerConstructors)
+          .filter(([, f]) => f !== undefined)
+          .map(([n]) => n)
+          .join(', ') || 'none'}`
+    );
+  }
+
+  return factory();
 }
