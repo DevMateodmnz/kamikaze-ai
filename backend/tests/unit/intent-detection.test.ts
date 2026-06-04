@@ -651,6 +651,31 @@ describe('generateReplyWithFallback', () => {
     vi.unstubAllEnvs();
   });
 
+  it('passes company identity and KB context to generateReply', async () => {
+    vi.stubEnv('AI_REPLIES_ENABLED', 'true');
+    vi.stubEnv('COMPANY_NAME', 'Acme Bikes');
+    mockedRouter.generateReply.mockResolvedValueOnce({
+      text: '¡Claro! Te cuento sobre nuestros modelos.',
+      confidence: 0.85,
+      finishReason: 'stop',
+      needsHuman: false,
+      provider: 'minimax',
+      latencyMs: 200,
+    });
+
+    await generateReplyWithFallback({
+      userMessage,
+      conversationId,
+      intent: 'product_interest',
+    });
+
+    const callArgs = mockedRouter.generateReply.mock.calls[0]![0]!;
+    const historyContent = callArgs.conversationHistory![0]!.content;
+    // Company name should appear in the system prompt
+    expect(historyContent).toContain('Acme Bikes');
+    vi.unstubAllEnvs();
+  });
+
   // ── Guardrail integration ────────────────────────────────────────
 
   it('returns null when guardrails reject AI reply (price in text)', async () => {

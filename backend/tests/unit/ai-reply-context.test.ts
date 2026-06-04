@@ -106,3 +106,68 @@ describe('buildAiReplyContext', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// buildAiReplyContext with company identity + KB context
+// ---------------------------------------------------------------------------
+
+describe('buildAiReplyContext with input', () => {
+  it('includes company name when provided', () => {
+    const result = buildAiReplyContext({ companyName: 'Acme Bikes' });
+    const allContent = result.map((m) => m.content).join(' ');
+    expect(allContent).toContain('Acme Bikes');
+  });
+
+  it('includes business type when provided', () => {
+    const result = buildAiReplyContext({ businessType: 'tienda de bicicletas' });
+    const allContent = result.map((m) => m.content).join(' ');
+    expect(allContent).toContain('tienda de bicicletas');
+  });
+
+  it('includes verified facts when provided', () => {
+    const result = buildAiReplyContext({
+      verifiedFacts: ['Horario: L-V 9-18', 'Aceptamos tarjeta de crédito'],
+    });
+    const allContent = result.map((m) => m.content).join(' ');
+    expect(allContent).toContain('Horario: L-V 9-18');
+    expect(allContent).toContain('Aceptamos tarjeta de crédito');
+  });
+
+  it('still works with no args (backward compatible)', () => {
+    const result = buildAiReplyContext();
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('still includes safety rules when company context is provided', () => {
+    const result = buildAiReplyContext({ companyName: 'TestCo' });
+    const allContent = result.map((m) => m.content).join(' ');
+    expect(allContent).toMatch(/precio/i);
+    expect(allContent).toMatch(/stock/i);
+    expect(allContent).toMatch(/descuento/i);
+  });
+
+  it('still includes reply style guidance when company context is provided', () => {
+    const result = buildAiReplyContext({ companyName: 'TestCo' });
+    const allContent = result.map((m) => m.content).join(' ');
+    expect(allContent).toMatch(/breve/i);
+    expect(allContent).toMatch(/español/i);
+  });
+
+  it('does NOT leak secrets or API keys even with input', () => {
+    const result = buildAiReplyContext({ companyName: 'X', verifiedFacts: ['fact'] });
+    const allContent = result.map((m) => m.content).join(' ');
+    expect(allContent).not.toMatch(/api[_-]?key/i);
+    expect(allContent).not.toMatch(/MINIMAX/i);
+  });
+
+  it('does NOT hardcode real company facts even with input', () => {
+    const result = buildAiReplyContext({ companyName: 'Acme' });
+    const allContent = result.map((m) => m.content).join(' ');
+    expect(allContent).not.toMatch(/Kamikaze/i);
+  });
+
+  it('handles empty verifiedFacts array', () => {
+    const result = buildAiReplyContext({ verifiedFacts: [] });
+    expect(result.length).toBeGreaterThan(0);
+  });
+});

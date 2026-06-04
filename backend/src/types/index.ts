@@ -31,6 +31,10 @@ export interface Env {
   // AI-generated replies safety gate
   AI_REPLIES_ENABLED: boolean;
 
+  // Company identity (generic — override per deployment)
+  COMPANY_NAME: string;
+  COMPANY_BUSINESS_TYPE: string;
+
   // Escalation
   DISCORD_WEBHOOK_URL: string;
   ESCALATION_CHANNEL_ID: string;

@@ -31,6 +31,10 @@ const envSchema = z.object({
   // AI-generated replies (disabled by default — enable only after safety review)
   AI_REPLIES_ENABLED: z.coerce.boolean().default(false),
 
+  // Company identity (generic — override per deployment)
+  COMPANY_NAME: z.string().default('Mi Empresa'),
+  COMPANY_BUSINESS_TYPE: z.string().default('comercio'),
+
   // Escalation
   DISCORD_WEBHOOK_URL: z.string().url().optional(),
   ESCALATION_CHANNEL_ID: z.string().optional(),
@@ -64,6 +68,8 @@ export function validateEnv(): Env {
     AI_MAX_TOKENS_REPLY: process.env.AI_MAX_TOKENS_REPLY,
     AI_MAX_TOKENS_INTENT: process.env.AI_MAX_TOKENS_INTENT,
     AI_REPLIES_ENABLED: process.env.AI_REPLIES_ENABLED,
+    COMPANY_NAME: process.env.COMPANY_NAME,
+    COMPANY_BUSINESS_TYPE: process.env.COMPANY_BUSINESS_TYPE,
     DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
     ESCALATION_CHANNEL_ID: process.env.ESCALATION_CHANNEL_ID,
     CORS_ORIGINS: process.env.CORS_ORIGINS,

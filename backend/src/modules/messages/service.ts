@@ -484,10 +484,16 @@ export async function generateReplyWithFallback(input: {
   if (!AI_REPLY_SAFE_INTENTS.has(input.intent)) return null;
 
   try {
+    // Gather KB context for the current intent (verified entries only)
+    const kbAnswer = await getVerifiedAnswerForIntent(input.intent);
+    const verifiedFacts = kbAnswer ? [kbAnswer.answer] : [];
+
     const result = await aiGatewayRouter.generateReply({
       userMessage: input.userMessage,
       conversationId: input.conversationId,
-      conversationHistory: buildAiReplyContext(),
+      conversationHistory: buildAiReplyContext({
+        verifiedFacts: verifiedFacts.length > 0 ? verifiedFacts : undefined,
+      }),
     });
 
     // Validate the response
