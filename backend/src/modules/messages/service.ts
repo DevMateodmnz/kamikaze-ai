@@ -13,6 +13,9 @@ import { makeDecision } from '../intent-detection/decision-engine.js';
 import { getVerifiedAnswerForIntent } from '../knowledge-base/service.js';
 import { escalationsService } from '../escalations/service.js';
 import type { Intent } from '../intent-detection/types.js';
+import type { IntentDetectionResult } from '../intent-detection/types.js';
+import { aiGatewayRouter } from '../ai-gateway/router.js';
+import type { Intent as AiIntent } from '../ai-gateway/types.js';
 
 /**
  * Input for storing an inbound message
@@ -261,7 +264,7 @@ export interface ProcessMessageResult {
  *
  * 1. Store inbound message (idempotent via whatsappMessageId)
  * 2. Skip processing for duplicates
- * 3. Detect intent (deterministic keyword-based)
+ * 3. Classify intent (AI + deterministic fallback)
  * 4. Make decision (reply / escalate)
  * 5. If reply: store outbound message (KB answer or template)
  * 6. If escalate: update conversation + create escalation record
@@ -292,8 +295,8 @@ export async function processInboundMessage(
     };
   }
 
-  // Detect intent
-  const detection = detectIntent(input.text);
+  // Classify intent (AI-enhanced with deterministic fallback)
+  const detection = await classifyIntentWithFallback(input.text);
 
   // Make decision
   const decision = makeDecision(detection.intent, detection.confidence);
@@ -354,6 +357,76 @@ export async function processInboundMessage(
   };
 }
 
+// ---------------------------------------------------------------------------
+// AI-enhanced intent classification with deterministic fallback
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps AI Gateway intent (10 values) to deterministic intent (15 values).
+ * Returns null for intents that have no deterministic equivalent.
+ */
+function mapAiIntentToDeterministic(aiIntent: AiIntent): Intent | null {
+  const map: Partial<Record<AiIntent, Intent>> = {
+    greeting: 'greeting',
+    product_interest: 'product_interest',
+    stock_question: 'stock_question',
+    discount_request: 'discount_request',
+    warranty: 'warranty_or_return',
+    complaint: 'complaint',
+    human_request: 'human_request',
+    general: 'unknown',
+    // technical_question, appointment_request → no mapping (null)
+  };
+  return map[aiIntent] ?? null;
+}
+
+/**
+ * Read the confidence threshold from env, with safe default.
+ */
+function getConfidenceThreshold(): number {
+  const raw = process.env['AI_MIN_CONFIDENCE_THRESHOLD'];
+  if (!raw) return 0.6;
+  const parsed = parseFloat(raw);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.6;
+}
+
+/**
+ * Classify intent using AI Gateway with deterministic fallback.
+ *
+ * 1. Always compute deterministicResult = detectIntent(text)
+ * 2. Try aiGatewayRouter.classifyIntent({ text })
+ * 3. If AI succeeds with a mappable intent AND confidence >= threshold:
+ *      use AI result
+ * 4. Otherwise (error, timeout, low confidence, unmappable intent):
+ *      fall back to deterministicResult
+ *
+ * Never throws — always returns a valid IntentDetectionResult.
+ */
+export async function classifyIntentWithFallback(
+  text: string
+): Promise<IntentDetectionResult> {
+  // Always compute deterministic result first (fast, zero-cost, no network)
+  const deterministicResult = detectIntent(text);
+
+  try {
+    const aiResult = await aiGatewayRouter.classifyIntent({ text });
+    const mappedIntent = mapAiIntentToDeterministic(aiResult.intent);
+    const threshold = getConfidenceThreshold();
+
+    if (mappedIntent && aiResult.confidence >= threshold) {
+      return {
+        intent: mappedIntent,
+        confidence: aiResult.confidence,
+        matchedKeywords: [],
+      };
+    }
+  } catch {
+    // AI failed — fall through to deterministic
+  }
+
+  return deterministicResult;
+}
+
 // Export as singleton service object
 export const messagesService = {
   storeInboundMessage,
@@ -362,4 +435,5 @@ export const messagesService = {
   getMessageByWhatsappId,
   isMessageProcessed,
   processInboundMessage,
+  classifyIntentWithFallback,
 };

@@ -1,11 +1,23 @@
 /**
- * Tests for Intent Detection and Decision Engine
+ * Tests for Intent Detection, Decision Engine, and AI Classification Fallback
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { detectIntent } from '../../src/modules/intent-detection/detector.js';
 import { makeDecision } from '../../src/modules/intent-detection/decision-engine.js';
 import type { Intent } from '../../src/modules/intent-detection/types.js';
+
+// Mock aiGatewayRouter for classifyIntentWithFallback tests
+vi.mock('../../src/modules/ai-gateway/router.js', () => ({
+  aiGatewayRouter: {
+    classifyIntent: vi.fn(),
+    generateReply: vi.fn(),
+    summarize: vi.fn(),
+    extractLeadData: vi.fn(),
+  },
+}));
+
+import { aiGatewayRouter } from '../../src/modules/ai-gateway/router.js';
 
 describe('Intent Detection', () => {
   describe('greeting', () => {
@@ -231,5 +243,141 @@ describe('Decision Engine', () => {
       const decision = makeDecision('greeting', 0.55);
       expect(decision.confidence).toBe(0.55);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyIntentWithFallback — AI classification with deterministic fallback
+// ---------------------------------------------------------------------------
+
+// Dynamic import so the mock is in place before the module loads
+const { classifyIntentWithFallback } = await import(
+  '../../src/modules/messages/service.js'
+);
+
+describe('classifyIntentWithFallback', () => {
+  const mockedRouter = vi.mocked(aiGatewayRouter);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uses AI classification when provider returns valid mapped intent with high confidence', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+
+    const result = await classifyIntentWithFallback('Busco una MTB para montaña');
+
+    expect(result.intent).toBe('product_interest');
+    expect(result.confidence).toBe(0.9);
+    expect(mockedRouter.classifyIntent).toHaveBeenCalledTimes(1);
+    // generateReply must NOT be called
+    expect(mockedRouter.generateReply).not.toHaveBeenCalled();
+  });
+
+  it('falls back to deterministic when AI provider throws', async () => {
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('fetch failed'));
+
+    const result = await classifyIntentWithFallback('Hola, buenos días');
+
+    expect(result.intent).toBe('greeting');
+    expect(result.confidence).toBeGreaterThan(0.5);
+    expect(mockedRouter.classifyIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to deterministic when AI returns low confidence', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'greeting',
+      confidence: 0.3,
+    });
+
+    const result = await classifyIntentWithFallback('Hola, buenos días');
+
+    expect(result.intent).toBe('greeting');
+    // Should use deterministic confidence, not AI's 0.3
+    expect(result.confidence).toBeGreaterThan(0.5);
+  });
+
+  it('falls back to deterministic when AI returns unmappable intent (technical_question)', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'technical_question',
+      confidence: 0.9,
+    });
+
+    const result = await classifyIntentWithFallback(
+      'Qué tipo de suspensión es mejor para MTB?'
+    );
+
+    expect(result.intent).toBe('product_interest'); // deterministic match
+    expect(mockedRouter.classifyIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to deterministic when AI returns unmappable intent (appointment_request)', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'appointment_request',
+      confidence: 0.85,
+    });
+
+    const result = await classifyIntentWithFallback(
+      'Quiero agendar una visita al local'
+    );
+
+    // deterministic should win — appointment_request not mappable
+    expect(result.intent).not.toBe('appointment_request');
+    expect(mockedRouter.classifyIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps AI "warranty" to deterministic "warranty_or_return"', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'warranty',
+      confidence: 0.85,
+    });
+
+    const result = await classifyIntentWithFallback('Tiene garantía la bici?');
+
+    expect(result.intent).toBe('warranty_or_return');
+    expect(result.confidence).toBe(0.85);
+  });
+
+  it('maps AI "general" to deterministic "unknown"', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'general',
+      confidence: 0.7,
+    });
+
+    const result = await classifyIntentWithFallback('asdfghjkl random text');
+
+    expect(result.intent).toBe('unknown');
+    expect(result.confidence).toBe(0.7);
+  });
+
+  it('still works when deterministic also returns unknown', async () => {
+    // AI succeeds but returns general → maps to unknown
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'general',
+      confidence: 0.7,
+    });
+
+    const result = await classifyIntentWithFallback('zxcvbnm no match at all');
+
+    expect(result.intent).toBe('unknown');
+    expect(result.confidence).toBe(0.7);
+  });
+
+  it('does NOT call aiGatewayRouter.generateReply', async () => {
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'greeting',
+      confidence: 0.9,
+    });
+
+    await classifyIntentWithFallback('Hola');
+
+    expect(mockedRouter.generateReply).not.toHaveBeenCalled();
   });
 });
