@@ -623,6 +623,51 @@ describe('generateReplyWithFallback', () => {
     vi.unstubAllEnvs();
   });
 
+  // ── Guardrail integration ────────────────────────────────────────
+
+  it('returns null when guardrails reject AI reply (price in text)', async () => {
+    vi.stubEnv('AI_REPLIES_ENABLED', 'true');
+    mockedRouter.generateReply.mockResolvedValueOnce({
+      text: 'Ese modelo cuesta $5000 y está disponible.',
+      confidence: 0.9,
+      finishReason: 'stop',
+      needsHuman: false,
+      provider: 'minimax',
+      latencyMs: 300,
+    });
+
+    const result = await generateReplyWithFallback({
+      userMessage,
+      conversationId,
+      intent: 'product_interest',
+    });
+
+    expect(result).toBeNull();
+    expect(mockedRouter.generateReply).toHaveBeenCalledTimes(1);
+    vi.unstubAllEnvs();
+  });
+
+  it('returns null when guardrails reject AI reply (stock claim)', async () => {
+    vi.stubEnv('AI_REPLIES_ENABLED', 'true');
+    mockedRouter.generateReply.mockResolvedValueOnce({
+      text: 'Sí, tenemos stock de ese modelo en todas las medidas.',
+      confidence: 0.85,
+      finishReason: 'stop',
+      needsHuman: false,
+      provider: 'minimax',
+      latencyMs: 200,
+    });
+
+    const result = await generateReplyWithFallback({
+      userMessage: '¿Tienen stock?',
+      conversationId,
+      intent: 'product_interest',
+    });
+
+    expect(result).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
   // ── Safety constraints ────────────────────────────────────────────
 
   it('does not import MiniMaxProvider directly in messages module', () => {

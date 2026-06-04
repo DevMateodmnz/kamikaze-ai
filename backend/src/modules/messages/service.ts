@@ -16,6 +16,7 @@ import type { Intent } from '../intent-detection/types.js';
 import type { IntentDetectionResult } from '../intent-detection/types.js';
 import { aiGatewayRouter } from '../ai-gateway/router.js';
 import type { Intent as AiIntent } from '../ai-gateway/types.js';
+import { validateAiReply } from './ai-reply-guardrails.js';
 
 /**
  * Input for storing an inbound message
@@ -490,6 +491,10 @@ export async function generateReplyWithFallback(input: {
     // Validate the response
     if (!result.text || result.text.trim().length === 0) return null;
     if (result.needsHuman) return null;
+
+    // Content guardrails: reject if AI reply appears unsafe
+    const guard = validateAiReply(result.text);
+    if (!guard.allowed) return null;
 
     return {
       replyText: result.text,
