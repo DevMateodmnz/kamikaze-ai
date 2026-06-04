@@ -304,15 +304,32 @@ export async function processInboundMessage(
   // If action is reply, check if we have verified KB data for this intent
   let outboundMessageId: string | null = null;
   if (decision.action === 'reply' && decision.replyText) {
-    const kbAnswer = await getVerifiedAnswerForIntent(detection.intent);
-    const replyTextToStore = kbAnswer ? kbAnswer.answer : decision.replyText;
+    // Try AI-generated reply for safe intents when enabled
+    const aiReply = await generateReplyWithFallback({
+      userMessage: input.text,
+      conversationId: result.conversation.id,
+      intent: detection.intent,
+    });
+
+    let replyTextToStore: string;
+    let replyAiProvider: string;
+
+    if (aiReply) {
+      replyTextToStore = aiReply.replyText;
+      replyAiProvider = aiReply.aiProvider;
+    } else {
+      // Fallback: KB answer or deterministic template
+      const kbAnswer = await getVerifiedAnswerForIntent(detection.intent);
+      replyTextToStore = kbAnswer ? kbAnswer.answer : decision.replyText;
+      replyAiProvider = 'deterministic';
+    }
 
     const outbound = await storeOutboundMessage({
       conversationId: result.conversation.id,
       content: replyTextToStore,
       intent: detection.intent,
       confidence: detection.confidence,
-      aiProvider: 'deterministic',
+      aiProvider: replyAiProvider,
       tokensUsed: 0,
     });
     outboundMessageId = outbound.id;
@@ -427,6 +444,63 @@ export async function classifyIntentWithFallback(
   return deterministicResult;
 }
 
+// ---------------------------------------------------------------------------
+// AI-generated replies behind feature flag
+// ---------------------------------------------------------------------------
+
+/**
+ * Intents eligible for AI-generated replies.
+ * All other intents use deterministic templates/KB regardless of flag.
+ */
+const AI_REPLY_SAFE_INTENTS: ReadonlySet<Intent> = new Set([
+  'product_interest',
+  'unknown',
+]);
+
+/**
+ * Generate an AI reply for a customer message, with safe fallback.
+ *
+ * Only called when:
+ *   - AI_REPLIES_ENABLED === 'true'
+ *   - The intent is in AI_REPLY_SAFE_INTENTS
+ *   - The decision is 'reply' (not 'escalate')
+ *
+ * Returns { replyText, aiProvider } on success, null to fall back to
+ * deterministic template/KB reply.
+ *
+ * Never throws — always returns null on any failure.
+ */
+export async function generateReplyWithFallback(input: {
+  userMessage: string;
+  conversationId: string;
+  intent: Intent;
+}): Promise<{ replyText: string; aiProvider: string } | null> {
+  // Feature flag gate
+  if (process.env['AI_REPLIES_ENABLED'] !== 'true') return null;
+
+  // Only safe intents get AI replies
+  if (!AI_REPLY_SAFE_INTENTS.has(input.intent)) return null;
+
+  try {
+    const result = await aiGatewayRouter.generateReply({
+      userMessage: input.userMessage,
+      conversationId: input.conversationId,
+    });
+
+    // Validate the response
+    if (!result.text || result.text.trim().length === 0) return null;
+    if (result.needsHuman) return null;
+
+    return {
+      replyText: result.text,
+      aiProvider: result.provider,
+    };
+  } catch {
+    // Any failure → fall back to deterministic
+    return null;
+  }
+}
+
 // Export as singleton service object
 export const messagesService = {
   storeInboundMessage,
@@ -436,4 +510,5 @@ export const messagesService = {
   isMessageProcessed,
   processInboundMessage,
   classifyIntentWithFallback,
+  generateReplyWithFallback,
 };
