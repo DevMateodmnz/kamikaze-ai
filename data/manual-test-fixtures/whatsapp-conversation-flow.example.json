@@ -1,0 +1,136 @@
+[
+  {
+    "_scenario": "1-greeting-deterministic-template",
+    "_description": "Simple greeting — should return deterministic template reply with intent=greeting, replySource=template, aiUsed=false.",
+    "from": "+5490000000001",
+    "text": "Hola, buenos días",
+    "timestamp": "1700000001"
+  },
+  {
+    "_scenario": "2-product-interest-template",
+    "_description": "Product interest query — should return template reply with intent=product_interest, replySource=template (AI_REPLIES_ENABLED=false by default).",
+    "from": "+5490000000002",
+    "text": "Busco una MTB para montaña, presupuesto 500 USD",
+    "timestamp": "1700000002"
+  },
+  {
+    "_scenario": "3-unknown-random-input",
+    "_description": "Nonsense input — should classify as unknown and return template fallback reply.",
+    "from": "+5490000000003",
+    "text": "asdfghjkl qwerty zxcvbnm",
+    "timestamp": "1700000003"
+  },
+  {
+    "_scenario": "4-complaint-escalation",
+    "_description": "Customer complaint — should escalate with intent=complaint, replySource=escalation.",
+    "from": "+5490000000004",
+    "text": "Estoy muy enojado con el servicio, es una porquería, nunca me llamaron",
+    "timestamp": "1700000004"
+  },
+  {
+    "_scenario": "5-human-request-escalation",
+    "_description": "Explicit human request — should escalate with intent=human_request, replySource=escalation.",
+    "from": "+5490000000005",
+    "text": "Quiero hablar con una persona, no con un robot",
+    "timestamp": "1700000005"
+  },
+  {
+    "_scenario": "6-store-hours-template",
+    "_description": "Store hours query — without verified KB entry, falls back to template. With verified KB: replySource=knowledge_base.",
+    "from": "+5490000000006",
+    "text": "¿Cuáles son los horarios de atención?",
+    "timestamp": "1700000006"
+  },
+  {
+    "_scenario": "7-store-location-template",
+    "_description": "Store location query — template reply (no verified KB by default).",
+    "from": "+5490000000007",
+    "text": "¿Dónde están ubicados? ¿Tienen local físico?",
+    "timestamp": "1700000007"
+  },
+  {
+    "_scenario": "8-payment-methods-template",
+    "_description": "Payment methods query — template reply with general payment info.",
+    "from": "+5490000000008",
+    "text": "¿Qué medios de pago aceptan? ¿Puedo pagar con tarjeta?",
+    "timestamp": "1700000008"
+  },
+  {
+    "_scenario": "9-shipping-template",
+    "_description": "Shipping query — template reply directing to human for specifics.",
+    "from": "+5490000000009",
+    "text": "¿Hacen envíos a domicilio? ¿Cuánto sale el envío a Yerba Buena?",
+    "timestamp": "1700000009"
+  },
+  {
+    "_scenario": "10-warranty-escalation",
+    "_description": "Warranty question — should escalate (warranty/returns always escalate).",
+    "from": "+5490000000010",
+    "text": "¿Tiene garantía la bicicleta? ¿Qué cubre?",
+    "timestamp": "1700000010"
+  },
+  {
+    "_scenario": "11-stock-question-escalation",
+    "_description": "Stock question — should escalate (stock questions always escalate).",
+    "from": "+5490000000011",
+    "text": "¿Tienen stock de la MTB X200 en talle M?",
+    "timestamp": "1700000011"
+  },
+  {
+    "_scenario": "12-price-question-escalation",
+    "_description": "Price question — should escalate (price questions always escalate).",
+    "from": "+5490000000012",
+    "text": "¿Cuánto sale la bicicleta de ruta modelo Pro?",
+    "timestamp": "1700000012"
+  },
+  {
+    "_scenario": "13-discount-request-escalation",
+    "_description": "Discount request — should escalate (discounts always escalate).",
+    "from": "+5490000000013",
+    "text": "¿Me hacés un descuento si pago en efectivo? ¿Hay promociones?",
+    "timestamp": "1700000013"
+  },
+  {
+    "_scenario": "14-thanks-template",
+    "_description": "Thanks message — template reply with friendly tone.",
+    "from": "+5490000000014",
+    "text": "Gracias por la información, muy útil",
+    "timestamp": "1700000014"
+  },
+  {
+    "_scenario": "15-goodbye-template",
+    "_description": "Goodbye message — template reply with friendly sign-off.",
+    "from": "+5490000000015",
+    "text": "Chau, hasta luego, gracias",
+    "timestamp": "1700000015"
+  },
+  {
+    "_scenario": "16-duplicate-idempotency",
+    "_description": "Duplicate message — this uses a fixed whatsappMessageId to test idempotency. Send twice; second should return duplicate=true, processing=null.",
+    "whatsappMessageId": "fixture-test-dup-00001",
+    "from": "+5490000000016",
+    "text": "Hola, qué tal",
+    "timestamp": "1700000016"
+  },
+  {
+    "_scenario": "17-conversation-sequence-customer-a-msg1",
+    "_description": "Multi-turn conversation: same phone number, message 1 of 3. Should accumulate in same conversation.",
+    "from": "+5490000000020",
+    "text": "Hola, estoy buscando una bicicleta",
+    "timestamp": "1700000020"
+  },
+  {
+    "_scenario": "18-conversation-sequence-customer-a-msg2",
+    "_description": "Multi-turn conversation: same phone number, message 2 of 3.",
+    "from": "+5490000000020",
+    "text": "Me interesa una de ruta, algo liviano",
+    "timestamp": "1700000021"
+  },
+  {
+    "_scenario": "19-conversation-sequence-customer-a-msg3",
+    "_description": "Multi-turn conversation: same phone number, message 3 of 3.",
+    "from": "+5490000000020",
+    "text": "Gracias, después les escribo",
+    "timestamp": "1700000022"
+  }
+]
