@@ -254,12 +254,15 @@ export async function deactivateEntry(id: string): Promise<KnowledgeEntry> {
  * Get verified safe answer for a given intent category.
  * Returns null if no verified active entry exists.
  *
+ * Matches by category AND intent-specific tags to ensure
+ * store_hours returns hours info, not payment info, etc.
+ *
  * Used by decision engine to augment deterministic replies with real KB data.
  */
 export async function getVerifiedAnswerForIntent(
   intent: string
 ): Promise<{ answer: string; entryId: string } | null> {
-  // Map intent to KB categories/tags
+  // Map intent to KB categories
   const intentToCategoryMap: Record<string, string> = {
     store_hours: 'store_info',
     store_location: 'store_info',
@@ -268,8 +271,21 @@ export async function getVerifiedAnswerForIntent(
     warranty_or_return: 'policy',
   };
 
+  // Map intent to tags that indicate intent-specific relevance.
+  // Only entries with at least one of these tags are considered.
+  const intentToTags: Record<string, string[]> = {
+    store_hours: ['horarios', 'horas', 'apertura', 'cierre', 'store_hours'],
+    store_location: ['ubicacion', 'direccion', 'mapa', 'sucursal', 'store_location'],
+    payment_methods: ['pago', 'tarjeta', 'efectivo', 'mercadopago', 'financiacion', 'cuotas', 'payment_methods'],
+    shipping: ['envio', 'entrega', 'domicilio', 'shipping'],
+    warranty_or_return: ['garantia', 'devolucion', 'cambio', 'warranty', 'return', 'warranty_or_return'],
+  };
+
   const category = intentToCategoryMap[intent];
   if (!category) return null;
+
+  const relevantTags = intentToTags[intent];
+  if (!relevantTags) return null;
 
   const entries = await prisma.knowledgeBaseEntry.findMany({
     where: {
@@ -277,6 +293,8 @@ export async function getVerifiedAnswerForIntent(
       active: true,
       // Only return entries that are verified (confidence > 0.5)
       confidence: { gt: 0.5 },
+      // Intent-specific: only match entries tagged for this intent
+      tags: { hasSome: relevantTags },
     },
     take: 1,
     orderBy: { confidence: 'desc' },

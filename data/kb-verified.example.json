@@ -4,7 +4,7 @@
     "category": "store_info",
     "question": "¿Cuáles son los horarios de atención?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["horarios", "atencion"],
+    "tags": ["horarios", "atencion", "store_hours"],
     "confidence": 0.3,
     "active": false
   },
@@ -12,7 +12,7 @@
     "category": "store_info",
     "question": "¿Dónde están ubicados?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["ubicacion", "direccion"],
+    "tags": ["ubicacion", "direccion", "store_location"],
     "confidence": 0.3,
     "active": false
   },
@@ -20,7 +20,7 @@
     "category": "store_info",
     "question": "¿Tienen más de una sucursal?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["sucursales"],
+    "tags": ["sucursales", "store_location"],
     "confidence": 0.3,
     "active": false
   },
@@ -28,7 +28,7 @@
     "category": "store_info",
     "question": "¿Qué medios de pago aceptan?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["pago", "tarjeta", "efectivo"],
+    "tags": ["pago", "tarjeta", "efectivo", "payment_methods"],
     "confidence": 0.3,
     "active": false
   },
@@ -36,7 +36,7 @@
     "category": "store_info",
     "question": "¿Hacen envíos a domicilio?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["envio", "entrega"],
+    "tags": ["envio", "entrega", "shipping"],
     "confidence": 0.3,
     "active": false
   },
@@ -44,7 +44,7 @@
     "category": "policy",
     "question": "¿Tiene garantía?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["garantia"],
+    "tags": ["garantia", "warranty_or_return"],
     "confidence": 0.3,
     "active": false
   },
@@ -52,7 +52,7 @@
     "category": "policy",
     "question": "¿Puedo devolver o cambiar?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["devolucion", "cambio"],
+    "tags": ["devolucion", "cambio", "warranty_or_return"],
     "confidence": 0.3,
     "active": false
   },
@@ -60,7 +60,7 @@
     "category": "faq",
     "question": "¿Cómo contacto un asesor humano?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["asesor", "humano", "contacto"],
+    "tags": ["asesor", "humano", "contacto", "faq"],
     "confidence": 0.3,
     "active": false
   },
@@ -68,7 +68,7 @@
     "category": "faq",
     "question": "¿Qué productos o servicios ofrecen?",
     "answer": "NEEDS_BUSINESS_VERIFICATION",
-    "tags": ["productos", "servicios"],
+    "tags": ["productos", "servicios", "faq"],
     "confidence": 0.3,
     "active": false
   }

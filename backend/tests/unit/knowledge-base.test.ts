@@ -207,6 +207,141 @@ describe('KB Integration Tests', () => {
     });
   });
 
+  // ── Intent-specific KB matching ──────────────────────────────────
+
+  describe('Intent-specific KB selection', () => {
+    it('returns hours entry for store_hours when hours-tagged entry exists', async () => {
+      if (!dbAvailable) return;
+      const hoursEntry = await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Horarios`,
+        answer: 'HORAS_TEST: L-V 9-18',
+        tags: ['horarios', 'store_hours'],
+        confidence: 0.9,
+        active: true,
+      });
+
+      const result = await knowledgeBaseService.getVerifiedAnswerForIntent('store_hours');
+      expect(result).not.toBeNull();
+      expect(result!.answer).toBe('HORAS_TEST: L-V 9-18');
+      expect(result!.entryId).toBe(hoursEntry.id);
+
+      await knowledgeBaseService.deactivateEntry(hoursEntry.id);
+    });
+
+    it('returns payment entry for payment_methods when payment-tagged entry exists', async () => {
+      if (!dbAvailable) return;
+      const paymentEntry = await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Pagos`,
+        answer: 'PAGO_TEST: Efectivo y tarjeta',
+        tags: ['pago', 'payment_methods'],
+        confidence: 0.9,
+        active: true,
+      });
+
+      const result = await knowledgeBaseService.getVerifiedAnswerForIntent('payment_methods');
+      expect(result).not.toBeNull();
+      expect(result!.answer).toBe('PAGO_TEST: Efectivo y tarjeta');
+      expect(result!.entryId).toBe(paymentEntry.id);
+
+      await knowledgeBaseService.deactivateEntry(paymentEntry.id);
+    });
+
+    it('returns null for payment_methods when only untagged store_info entry exists', async () => {
+      if (!dbAvailable) return;
+      // Create an entry that's in store_info but tagged only for hours
+      await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Solo horas`,
+        answer: 'HORAS_TEST',
+        tags: ['horarios', 'store_hours'], // NOT payment_methods
+        confidence: 1.0,
+        active: true,
+      });
+
+      const result = await knowledgeBaseService.getVerifiedAnswerForIntent('payment_methods');
+      // Should be null — no entry tagged for payment methods
+      expect(result).toBeNull();
+    });
+
+    it('returns shipping entry for shipping when shipping-tagged entry exists', async () => {
+      if (!dbAvailable) return;
+      const shipEntry = await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Envíos`,
+        answer: 'ENVIO_TEST: Envío gratis',
+        tags: ['envio', 'shipping'],
+        confidence: 0.9,
+        active: true,
+      });
+
+      const result = await knowledgeBaseService.getVerifiedAnswerForIntent('shipping');
+      expect(result).not.toBeNull();
+      expect(result!.answer).toBe('ENVIO_TEST: Envío gratis');
+      expect(result!.entryId).toBe(shipEntry.id);
+
+      await knowledgeBaseService.deactivateEntry(shipEntry.id);
+    });
+
+    it('returns highest-confidence entry among same-intent entries', async () => {
+      if (!dbAvailable) return;
+      const lowConf = await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Horarios low`,
+        answer: 'HORAS_LOW',
+        tags: ['horarios', 'store_hours'],
+        confidence: 0.7,
+        active: true,
+      });
+      const highConf = await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Horarios high`,
+        answer: 'HORAS_HIGH',
+        tags: ['horarios', 'store_hours'],
+        confidence: 0.95,
+        active: true,
+      });
+
+      const result = await knowledgeBaseService.getVerifiedAnswerForIntent('store_hours');
+      expect(result).not.toBeNull();
+      expect(result!.answer).toBe('HORAS_HIGH'); // highest confidence wins
+
+      await knowledgeBaseService.deactivateEntry(lowConf.id);
+      await knowledgeBaseService.deactivateEntry(highConf.id);
+    });
+
+    it('does not return low-confidence entry even if tagged for intent', async () => {
+      if (!dbAvailable) return;
+      await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Low conf`,
+        answer: 'LOW_CONF',
+        tags: ['pago', 'payment_methods'],
+        confidence: 0.3, // below 0.5 threshold
+        active: true,
+      });
+
+      const result = await knowledgeBaseService.getVerifiedAnswerForIntent('payment_methods');
+      expect(result).toBeNull();
+    });
+
+    it('does not return placeholder entry even if tagged for intent', async () => {
+      if (!dbAvailable) return;
+      await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Placeholder`,
+        answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar',
+        tags: ['pago', 'payment_methods'],
+        confidence: 0.9,
+        active: true,
+      });
+
+      const result = await knowledgeBaseService.getVerifiedAnswerForIntent('payment_methods');
+      expect(result).toBeNull();
+    });
+  });
+
   describe('Decision engine integration', () => {
     it('store_hours intent uses template when no verified KB entry exists', async () => {
       if (!dbAvailable) return;
