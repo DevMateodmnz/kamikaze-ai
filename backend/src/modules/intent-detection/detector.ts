@@ -72,8 +72,10 @@ const INTENT_KEYWORDS: Record<Intent, string[]> = {
     'cierran', 'que hora', 'a qué hora', 'atencion',
   ],
   store_location: [
-    'direccion', 'ubicacion', 'donde estan', 'donde fica',
+    'direccion', 'ubicacion', 'ubicación', 'ubicados',
+    'donde estan', 'donde queda', 'queda el local',
     'como llego', 'mapa', 'sucursal', 'dirección',
+    'local fisico', 'local físico',
   ],
   payment_methods: [
     'pago', 'tarjeta', 'efectivo', 'debito', 'credito',

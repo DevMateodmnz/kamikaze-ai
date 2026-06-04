@@ -244,6 +244,67 @@ describe('Decision Engine', () => {
       expect(decision.confidence).toBe(0.55);
     });
   });
+
+  // ── store_location detection (common Spanish location phrases) ────
+
+  describe('store_location detection', () => {
+    it('detects "¿Dónde están ubicados?"', () => {
+      const result = detectIntent('¿Dónde están ubicados?');
+      expect(result.intent).toBe('store_location');
+    });
+
+    it('detects "¿Tienen local físico?"', () => {
+      const result = detectIntent('¿Tienen local físico?');
+      expect(result.intent).toBe('store_location');
+    });
+
+    it('detects "¿Cuál es la dirección?"', () => {
+      const result = detectIntent('¿Cuál es la dirección?');
+      expect(result.intent).toBe('store_location');
+    });
+
+    it('detects "Pasame la ubicación"', () => {
+      const result = detectIntent('Pasame la ubicación');
+      expect(result.intent).toBe('store_location');
+    });
+
+    it('detects "¿Dónde queda el local?"', () => {
+      const result = detectIntent('¿Dónde queda el local?');
+      expect(result.intent).toBe('store_location');
+    });
+
+    it('detects "¿Me mandás el mapa?"', () => {
+      const result = detectIntent('¿Me mandás el mapa?');
+      expect(result.intent).toBe('store_location');
+    });
+
+    it('detects "¿Tienen sucursal?"', () => {
+      const result = detectIntent('¿Tienen sucursal?');
+      expect(result.intent).toBe('store_location');
+    });
+
+    it('detects "¿Dónde están ubicados? ¿Tienen local físico?" (combined)', () => {
+      const result = detectIntent('¿Dónde están ubicados? ¿Tienen local físico?');
+      expect(result.intent).toBe('store_location');
+    });
+
+    // ── Negative tests: these should NOT be store_location ──
+
+    it('does NOT classify "¿Dónde puedo pagar?" as store_location', () => {
+      const result = detectIntent('¿Dónde puedo pagar?');
+      expect(result.intent).not.toBe('store_location');
+    });
+
+    it('does NOT classify "¿Tienen envío a domicilio?" as store_location', () => {
+      const result = detectIntent('¿Tienen envío a domicilio?');
+      expect(result.intent).not.toBe('store_location');
+    });
+
+    it('does NOT classify "¿Dónde veo los precios?" as store_location', () => {
+      const result = detectIntent('¿Dónde veo los precios?');
+      expect(result.intent).not.toBe('store_location');
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
