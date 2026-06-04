@@ -383,6 +383,75 @@ describe('classifyIntentWithFallback', () => {
 });
 
 // ---------------------------------------------------------------------------
+// AI_CLASSIFICATION_ENABLED — skip external AI provider calls
+// ---------------------------------------------------------------------------
+
+describe('AI_CLASSIFICATION_ENABLED flag', () => {
+  const mockedRouter = vi.mocked(aiGatewayRouter);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('when false, skips AI provider entirely and uses deterministic', async () => {
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'false');
+
+    const result = await classifyIntentWithFallback('Hola, buenos días');
+
+    expect(result.intent).toBe('greeting');
+    expect(result.intentSource).toBe('deterministic');
+    expect(mockedRouter.classifyIntent).not.toHaveBeenCalled();
+  });
+
+  it('when false, classifyIntent is never called', async () => {
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'false');
+
+    await classifyIntentWithFallback('Busco una MTB');
+
+    expect(mockedRouter.classifyIntent).not.toHaveBeenCalled();
+  });
+
+  it('when not set (default), AI classification is still attempted', async () => {
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+    // Do not stub AI_CLASSIFICATION_ENABLED → should try AI
+
+    const result = await classifyIntentWithFallback('Hola');
+
+    expect(result.intent).toBe('greeting');
+    expect(mockedRouter.classifyIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it('when true, AI classification is attempted normally', async () => {
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'true');
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'greeting',
+      confidence: 0.9,
+    });
+
+    const result = await classifyIntentWithFallback('Hola');
+
+    expect(result.intentSource).toBe('ai');
+    expect(mockedRouter.classifyIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it('deterministic fallback still works when AI_CLASSIFICATION_ENABLED is false', async () => {
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'false');
+
+    // Greeting is reliably detected by deterministic keywords
+    const result = await classifyIntentWithFallback('Hola, buenos días');
+
+    expect(result.intent).toBe('greeting');
+    expect(result.intentSource).toBe('deterministic');
+    expect(mockedRouter.classifyIntent).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AI_REPLIES_ENABLED — feature flag behavior
 // ---------------------------------------------------------------------------
 

@@ -23,13 +23,21 @@ cd backend && npm run check:fixtures
 
 ### Inspect Fixture Behavior
 
-Preview how each fixture would be processed using the inspection formatter (no DB, no backend):
+**Offline (mock-based, no backend required):**
 
 ```bash
 cd backend && npm run inspect:fixtures
 ```
 
-This prints a JSON array of inspection summaries showing expected intent, reply source, AI usage flags, and contextual notes for every runnable fixture.
+This prints a JSON array of inspection summaries showing expected intent, reply source, AI usage flags, and contextual notes for every runnable fixture. Pure offline — no DB, no backend, no network.
+
+**Real service (requires running backend):**
+
+```bash
+cd backend && npm run inspect:fixtures:real
+```
+
+This sends fixtures through a running backend instance (`http://localhost:3000`), calls the real `processInboundMessage` pipeline (with `AI_REPLIES_ENABLED=false`), and prints inspection summaries from actual trace metadata. Requires PostgreSQL and backend running. No external AI/WhatsApp/email calls.
 
 This checks: valid JSON, unique scenarios, fake phone numbers, no secrets, required fields, intent coverage, and idempotency/multi-turn scenario integrity. No network calls.
 

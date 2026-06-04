@@ -18,7 +18,8 @@
     "seed:kb": "tsx src/scripts/seed-knowledge-base.ts",
     "check:kb-safety": "bash ../scripts/check-kb-safety.sh",
     "check:fixtures": "vitest run tests/unit/conversation-fixtures.test.ts",
-    "inspect:fixtures": "tsx src/scripts/inspect-conversation-fixtures.ts"
+    "inspect:fixtures": "tsx src/scripts/inspect-conversation-fixtures.ts",
+    "inspect:fixtures:real": "tsx src/scripts/inspect-conversation-fixtures-real.ts"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

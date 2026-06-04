@@ -452,10 +452,11 @@ function getConfidenceThreshold(): number {
  * Classify intent using AI Gateway with deterministic fallback.
  *
  * 1. Always compute deterministicResult = detectIntent(text)
- * 2. Try aiGatewayRouter.classifyIntent({ text })
- * 3. If AI succeeds with a mappable intent AND confidence >= threshold:
+ * 2. If AI_CLASSIFICATION_ENABLED is explicitly 'false', skip AI entirely
+ * 3. Try aiGatewayRouter.classifyIntent({ text })
+ * 4. If AI succeeds with a mappable intent AND confidence >= threshold:
  *      use AI result
- * 4. Otherwise (error, timeout, low confidence, unmappable intent):
+ * 5. Otherwise (error, timeout, low confidence, unmappable intent, disabled):
  *      fall back to deterministicResult
  *
  * Never throws — always returns a valid IntentDetectionResult.
@@ -465,6 +466,14 @@ export async function classifyIntentWithFallback(
 ): Promise<IntentDetectionResult> {
   // Always compute deterministic result first (fast, zero-cost, no network)
   const deterministicResult = detectIntent(text);
+
+  // Explicit disable: skip AI entirely, return deterministic
+  if (process.env['AI_CLASSIFICATION_ENABLED'] === 'false') {
+    return {
+      ...deterministicResult,
+      intentSource: 'deterministic',
+    };
+  }
 
   try {
     const aiResult = await aiGatewayRouter.classifyIntent({ text });
