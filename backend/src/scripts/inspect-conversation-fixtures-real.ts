@@ -17,6 +17,7 @@
  */
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { request } from 'http';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -24,8 +25,77 @@ import { resolve } from 'path';
 
 const BASE_URL = process.env['BACKEND_URL'] ?? 'http://localhost:3000';
 const API_KEY = process.env['INTERNAL_API_KEY'] ?? 'change_me_to_a_secure_random_key';
-const PROCESS_URL = `${BASE_URL}/api/v1/messages/process`;
-const HEALTH_URL = `${BASE_URL}/health`;
+const { hostname, port } = new URL(BASE_URL);
+const API_PORT = parseInt(port || '3000', 10);
+
+// ---------------------------------------------------------------------------
+// HTTP helpers (using Node.js http module — fetch() may fail on localhost)
+// ---------------------------------------------------------------------------
+
+function httpRequest(
+  method: string,
+  path: string,
+  body?: string
+): Promise<{ status: number; data: unknown }> {
+  return new Promise((resolve, reject) => {
+    const req = request(
+      {
+        hostname,
+        port: API_PORT,
+        path,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY,
+          ...(body ? { 'Content-Length': Buffer.byteLength(body).toString() } : {}),
+        },
+        timeout: 10_000,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => {
+          try {
+            resolve({ status: res.statusCode ?? 0, data: JSON.parse(data) });
+          } catch {
+            resolve({ status: res.statusCode ?? 0, data: { raw: data } });
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+async function checkBackend(): Promise<boolean> {
+  try {
+    const { status } = await httpRequest('GET', '/health');
+    return status === 200;
+  } catch {
+    return false;
+  }
+}
+
+async function sendFixture(
+  fixture: { whatsappMessageId?: string; from?: string; text?: string },
+  suffix: string
+): Promise<unknown> {
+  const bodyObj: Record<string, string> = {
+    whatsappMessageId: fixture.whatsappMessageId
+      ? `${fixture.whatsappMessageId}-real-${suffix}`
+      : `fixture-${suffix}-${Math.random().toString(36).slice(2, 8)}`,
+    from: fixture.from ?? '+5490000000000',
+    text: fixture.text ?? '',
+  };
+  const { data } = await httpRequest('POST', '/api/v1/messages/process', JSON.stringify(bodyObj));
+  return data;
+}
 
 // ---------------------------------------------------------------------------
 // Load fixtures
@@ -48,52 +118,10 @@ interface FixtureEntry {
 
 const raw = readFileSync(fixturePath, 'utf-8');
 const allFixtures: FixtureEntry[] = JSON.parse(raw);
-
-// Only run entries with expected metadata
 const runnable = allFixtures.filter((f) => f._expectedIntent);
 
 // ---------------------------------------------------------------------------
-// HTTP helpers
-// ---------------------------------------------------------------------------
-
-async function checkBackend(): Promise<boolean> {
-  try {
-    const res = await fetch(HEALTH_URL, { signal: AbortSignal.timeout(3000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function sendFixture(
-  fixture: FixtureEntry,
-  suffix: string
-): Promise<unknown> {
-  const body: Record<string, string> = {
-    from: fixture.from ?? '+5490000000000',
-    text: fixture.text ?? '',
-  };
-
-  if (fixture.whatsappMessageId) {
-    // Suffix to avoid collision across runs
-    body.whatsappMessageId = `${fixture.whatsappMessageId}-real-${suffix}`;
-  }
-
-  const res = await fetch(PROCESS_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': API_KEY,
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  return res.json();
-}
-
-// ---------------------------------------------------------------------------
-// Output formatter (inline to avoid ESM import issues with tsx + NodeNext)
+// Output formatter
 // ---------------------------------------------------------------------------
 
 interface InspectionResult {
@@ -113,21 +141,12 @@ interface InspectionResult {
 function formatInspection(raw: unknown, scenario: string): InspectionResult {
   const r = raw as Record<string, unknown> | null;
   if (!r) {
-    return {
-      processed: false,
-      duplicate: false,
-      notes: ['No response from backend.'],
-    };
+    return { processed: false, duplicate: false, notes: ['No response from backend.'] };
   }
-
   const proc = r['processing'] as Record<string, unknown> | null;
   const trace = (proc?.['trace'] ?? null) as Record<string, unknown> | null;
-
-  // Mask phone — never print real phone numbers
-  const fromDisplay = '(masked)';
-
   return {
-    processed: proc !== null,
+    processed: proc != null,
     duplicate: Boolean(r['duplicate']),
     intent: trace?.['intent'] as string | undefined,
     intentSource: trace?.['intentSource'] as string | undefined,
@@ -139,7 +158,7 @@ function formatInspection(raw: unknown, scenario: string): InspectionResult {
     confidence: trace?.['confidence'] as number | undefined,
     notes: [
       `[real service] ${scenario}`,
-      proc ? 'Message fully processed.' : 'Duplicate or stored-only (no processing).',
+      proc != null ? 'Message fully processed.' : 'Duplicate or stored-only (no processing).',
     ],
   };
 }
@@ -151,20 +170,16 @@ function formatInspection(raw: unknown, scenario: string): InspectionResult {
 async function main() {
   console.log('=== Real-Service Fixture Inspection ===\n');
 
-  // SAFETY: require AI classification to be disabled
   if (process.env['AI_CLASSIFICATION_ENABLED'] !== 'false') {
     console.error('ERROR: AI_CLASSIFICATION_ENABLED must be set to "false".');
     console.error('This prevents external AI provider calls during fixture inspection.');
-    console.error('');
-    console.error('Run with:');
+    console.error('\nRun with:');
     console.error('  AI_CLASSIFICATION_ENABLED=false npm run inspect:fixtures:real');
-    console.error('');
-    console.error('Or set it in your .env file:');
+    console.error('\nOr set it in your .env file:');
     console.error('  AI_CLASSIFICATION_ENABLED=false');
     process.exit(1);
   }
 
-  // Check backend
   console.log(`Checking backend at ${BASE_URL}...`);
   const backendOk = await checkBackend();
   if (!backendOk) {
@@ -184,7 +199,7 @@ async function main() {
     error?: string;
   }> = [];
 
-  // ── Single-message fixtures (exclude duplicate and multi-turn) ────
+  // ── Single-message fixtures ─────────────────────────────────────
   const singleFixtures = runnable.filter(
     (f) =>
       !f._scenario?.includes('duplicate') &&
@@ -198,13 +213,12 @@ async function main() {
     process.stdout.write(`  ${scenario}... `);
     try {
       const raw = await sendFixture(fixture, suffix);
-      const inspection = formatInspection(raw, scenario);
       results.push({
         scenario,
         from: '(masked)',
         expectedIntent: fixture._expectedIntent,
         expectedReplySource: fixture._expectedReplySource,
-        inspection,
+        inspection: formatInspection(raw, scenario),
       });
       console.log('OK');
     } catch (err) {
@@ -220,30 +234,26 @@ async function main() {
     }
   }
 
-  // ── Duplicate idempotency ────────────────────────────────────────
-  const dupFixture = allFixtures.find(
-    (f) => f._scenario === '16-duplicate-idempotency'
-  );
+  // ── Duplicate idempotency ──────────────────────────────────────
+  const dupFixture = allFixtures.find((f) => f._scenario === '16-duplicate-idempotency');
   if (dupFixture) {
-    const scenario = '16-duplicate-idempotency';
-    process.stdout.write(`  ${scenario} (first)... `);
+    process.stdout.write(`  16-duplicate-idempotency (first)... `);
     try {
       const first = await sendFixture(dupFixture, suffix);
       results.push({
-        scenario: `${scenario}-first`,
+        scenario: '16-duplicate-idempotency-first',
         from: '(masked)',
         expectedIntent: dupFixture._expectedIntent,
         expectedReplySource: dupFixture._expectedReplySource,
-        inspection: formatInspection(first, scenario),
+        inspection: formatInspection(first, '16-dup'),
       });
       console.log('OK');
-
-      process.stdout.write(`  ${scenario} (second)... `);
+      process.stdout.write(`  16-duplicate-idempotency (second)... `);
       const second = await sendFixture(dupFixture, suffix);
       results.push({
-        scenario: `${scenario}-second`,
+        scenario: '16-duplicate-idempotency-second',
         from: '(masked)',
-        inspection: formatInspection(second, scenario),
+        inspection: formatInspection(second, '16-dup'),
       });
       console.log('OK');
     } catch (err) {
@@ -251,7 +261,7 @@ async function main() {
     }
   }
 
-  // ── Multi-turn ───────────────────────────────────────────────────
+  // ── Multi-turn ─────────────────────────────────────────────────
   const multiFixtures = [
     allFixtures.find((f) => f._scenario === '17-conversation-sequence-customer-a-msg1'),
     allFixtures.find((f) => f._scenario === '18-conversation-sequence-customer-a-msg2'),
@@ -277,17 +287,14 @@ async function main() {
     }
   }
 
-  // ── Output ───────────────────────────────────────────────────────
+  // ── Output ─────────────────────────────────────────────────────
   console.log('\n' + JSON.stringify(results, null, 2));
 
   const processed = results.filter((r) => r.inspection.processed).length;
   const duplicates = results.filter((r) => r.inspection.duplicate).length;
-  const escalations = results.filter(
-    (r) => r.inspection.replySource === 'escalation'
-  ).length;
-  const templates = results.filter(
-    (r) => r.inspection.replySource === 'template'
-  ).length;
+  const escalations = results.filter((r) => r.inspection.replySource === 'escalation').length;
+  const templates = results.filter((r) => r.inspection.replySource === 'template').length;
+  const errors = results.filter((r) => r.error).length;
 
   console.log(`\n=== Summary ===`);
   console.log(`Total sent:     ${results.length}`);
@@ -295,10 +302,10 @@ async function main() {
   console.log(`Duplicates:     ${duplicates}`);
   console.log(`Templates:      ${templates}`);
   console.log(`Escalations:    ${escalations}`);
-  console.log(`Errors:         ${results.filter((r) => r.error).length}`);
+  console.log(`Errors:         ${errors}`);
   console.log(`AI replies:     0 (AI_REPLIES_ENABLED=false by default)`);
   console.log(`\nBackend: ${BASE_URL}`);
-  console.log(`Note: AI classification may fail offline (fallback to deterministic).`);
+  console.log(`AI_CLASSIFICATION_ENABLED: ${process.env['AI_CLASSIFICATION_ENABLED'] ?? 'unset'}`);
 }
 
 main().catch((err) => {
