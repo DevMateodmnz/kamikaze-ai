@@ -47,6 +47,8 @@
   {
     "_scenario": "6-store-hours-template",
     "_description": "Store hours query — without verified KB entry, falls back to template. With verified KB: replySource=knowledge_base.",
+    "_expectedIntent": "store_hours",
+    "_expectedReplySource": "template",
     "from": "+5490000000006",
     "text": "¿Cuáles son los horarios de atención?",
     "timestamp": "1700000006"
@@ -54,6 +56,8 @@
   {
     "_scenario": "7-store-location-template",
     "_description": "Store location query — template reply (no verified KB by default).",
+    "_expectedIntent": "store_location",
+    "_expectedReplySource": "template",
     "from": "+5490000000007",
     "text": "¿Dónde están ubicados? ¿Tienen local físico?",
     "timestamp": "1700000007"
@@ -61,6 +65,8 @@
   {
     "_scenario": "8-payment-methods-template",
     "_description": "Payment methods query — template reply with general payment info.",
+    "_expectedIntent": "payment_methods",
+    "_expectedReplySource": "template",
     "from": "+5490000000008",
     "text": "¿Qué medios de pago aceptan? ¿Puedo pagar con tarjeta?",
     "timestamp": "1700000008"
@@ -68,6 +74,8 @@
   {
     "_scenario": "9-shipping-template",
     "_description": "Shipping query — template reply directing to human for specifics.",
+    "_expectedIntent": "shipping",
+    "_expectedReplySource": "template",
     "from": "+5490000000009",
     "text": "¿Hacen envíos a domicilio? ¿Cuánto sale el envío a Yerba Buena?",
     "timestamp": "1700000009"
@@ -75,6 +83,8 @@
   {
     "_scenario": "10-warranty-escalation",
     "_description": "Warranty question — should escalate (warranty/returns always escalate).",
+    "_expectedIntent": "warranty_or_return",
+    "_expectedReplySource": "escalation",
     "from": "+5490000000010",
     "text": "¿Tiene garantía la bicicleta? ¿Qué cubre?",
     "timestamp": "1700000010"
@@ -82,6 +92,8 @@
   {
     "_scenario": "11-stock-question-escalation",
     "_description": "Stock question — should escalate (stock questions always escalate).",
+    "_expectedIntent": "stock_question",
+    "_expectedReplySource": "escalation",
     "from": "+5490000000011",
     "text": "¿Tienen stock de la MTB X200 en talle M?",
     "timestamp": "1700000011"
@@ -89,6 +101,8 @@
   {
     "_scenario": "12-price-question-escalation",
     "_description": "Price question — should escalate (price questions always escalate).",
+    "_expectedIntent": "price_question",
+    "_expectedReplySource": "escalation",
     "from": "+5490000000012",
     "text": "¿Cuánto sale la bicicleta de ruta modelo Pro?",
     "timestamp": "1700000012"
@@ -96,6 +110,8 @@
   {
     "_scenario": "13-discount-request-escalation",
     "_description": "Discount request — should escalate (discounts always escalate).",
+    "_expectedIntent": "discount_request",
+    "_expectedReplySource": "escalation",
     "from": "+5490000000013",
     "text": "¿Me hacés un descuento si pago en efectivo? ¿Hay promociones?",
     "timestamp": "1700000013"
@@ -112,6 +128,8 @@
   {
     "_scenario": "15-goodbye-template",
     "_description": "Goodbye message — template reply with friendly sign-off.",
+    "_expectedIntent": "goodbye",
+    "_expectedReplySource": "template",
     "from": "+5490000000015",
     "text": "Chau, hasta luego, gracias",
     "timestamp": "1700000015"

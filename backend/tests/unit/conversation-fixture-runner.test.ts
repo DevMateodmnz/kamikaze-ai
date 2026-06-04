@@ -104,18 +104,33 @@ describe('Conversation fixture runner', () => {
     it(`fixture "${scenario}" → intent="${expectedIntent}" replySource="${expectedReplySource}"`, async () => {
       if (!dbAvailable) return;
 
-      // Mock AI classification to return the expected intent with high confidence
-      mockedRouter.classifyIntent.mockResolvedValueOnce({
-        intent: mapExpectedIntentToAi(fixture._expectedIntent!),
-        confidence: 0.9,
-      });
+      const aiMockIntent = mapExpectedIntentToAi(fixture._expectedIntent!);
+      let expectedIntentSource: string;
+
+      if (aiMockIntent) {
+        // Intent has a direct AI mapping — mock success
+        mockedRouter.classifyIntent.mockResolvedValueOnce({
+          intent: aiMockIntent,
+          confidence: 0.9,
+        });
+        expectedIntentSource = 'ai';
+      } else {
+        // Intent has no AI mapping — mock rejection to force deterministic fallback
+        mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('unmappable'));
+        expectedIntentSource = 'fallback';
+      }
 
       const { processInboundMessage } = await import(
         '../../src/modules/messages/service.js'
       );
 
+      // Use unique whatsappMessageId per fixture to avoid collision with duplicate scenario
+      const uniqueWamid = fixture.whatsappMessageId
+        ? `${fixture.whatsappMessageId}-${testTimestamp}`
+        : undefined;
+
       const result = await processInboundMessage({
-        whatsappMessageId: fixture.whatsappMessageId,
+        whatsappMessageId: uniqueWamid,
         from: fixture.from,
         text: fixture.text,
       });
@@ -130,13 +145,10 @@ describe('Conversation fixture runner', () => {
 
       // Verify trace fields match expected metadata
       expect(trace.intent).toBe(expectedIntent);
+      expect(trace.intentSource).toBe(expectedIntentSource);
       expect(trace.aiReplyEnabled).toBe(false);
       expect(trace.aiReplyUsed).toBe(false);
-
-      // intentSource: AI since we mocked classifyIntent successfully
-      // Escalation intents that go to 'fallback' via makeDecision still have AI intentSource
-      // because classifyIntentWithFallback returned 'ai' source before makeDecision runs
-      expect(trace.intentSource).toBe('ai');
+      expect(trace.aiIntentUsed).toBe(expectedIntentSource === 'ai');
 
       // Verify replySource
       if (expectedReplySource) {
@@ -193,9 +205,9 @@ describe('Conversation fixture runner', () => {
 
 /**
  * Map deterministic Intent to AI Gateway Intent for the mock.
- * Some intents map 1:1, others need the AI Gateway equivalent.
+ * Returns null for intents without a direct AI mapping (forces fallback).
  */
-function mapExpectedIntentToAi(intent: string): string {
+function mapExpectedIntentToAi(intent: string): string | null {
   // Most deterministic intents have the same name in AI Gateway
   const directMap = new Set([
     'greeting', 'product_interest', 'stock_question',
@@ -208,6 +220,7 @@ function mapExpectedIntentToAi(intent: string): string {
   // unknown → general
   if (intent === 'unknown') return 'general';
 
-  // Other intents (thanks, goodbye, store_hours, etc.) → general
-  return 'general';
+  // store_hours, store_location, payment_methods, shipping,
+  // price_question, thanks, goodbye → no AI mapping → null (fallback)
+  return null;
 }
