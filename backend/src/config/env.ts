@@ -51,6 +51,9 @@ const envSchema = z.object({
   COMPANY_SHIPPING_POLICY: z.string().default('Los envíos se coordinan directamente con un asesor. Consultá por tu zona para confirmar disponibilidad y costo.'),
   COMPANY_WARRANTY_POLICY: z.string().default('Consultá con un asesor sobre garantía y devoluciones.'),
 
+  // Company product categories (used in product-interest replies)
+  COMPANY_PRODUCT_CATEGORIES: z.string().default('MTB, ruta, gravel, ciudad'),
+
   // Human Escalation (Email / SMTP)
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
@@ -123,6 +126,7 @@ function buildRawEnv() {
     COMPANY_PAYMENT_METHODS: process.env.COMPANY_PAYMENT_METHODS,
     COMPANY_SHIPPING_POLICY: process.env.COMPANY_SHIPPING_POLICY,
     COMPANY_WARRANTY_POLICY: process.env.COMPANY_WARRANTY_POLICY,
+    COMPANY_PRODUCT_CATEGORIES: process.env.COMPANY_PRODUCT_CATEGORIES,
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,
     SMTP_SECURE: process.env.SMTP_SECURE,

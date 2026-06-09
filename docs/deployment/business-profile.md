@@ -44,6 +44,7 @@ live in separate env vars and are documented in `.env.example`.
 | `COMPANY_PAYMENT_METHODS` | (see `.env.example`) | `payment_methods` replies |
 | `COMPANY_SHIPPING_POLICY` | `Los envíos se coordinan directamente con un asesor. Consultá por tu zona para confirmar disponibilidad y costo.` | `shipping` replies |
 | `COMPANY_WARRANTY_POLICY` | `Consultá con un asesor sobre garantía y devoluciones.` | Escalation context (future) |
+| `COMPANY_PRODUCT_CATEGORIES` | `MTB, ruta, gravel, ciudad` | `product_interest` replies |
 
 ### Where each field is used
 
@@ -56,6 +57,7 @@ live in separate env vars and are documented in `.env.example`.
 | `paymentMethods` | Decision engine `payment_methods` template |
 | `shippingPolicy` | Decision engine `shipping` template |
 | `warrantyPolicy` | Business profile (reserved for future escalation templates) |
+| `productCategories` | Decision engine `product_interest` template |
 
 ---
 
@@ -73,6 +75,7 @@ COMPANY_LOCATION=Córdoba Capital, Argentina
 COMPANY_PAYMENT_METHODS=Aceptamos efectivo, tarjeta de débito y todas las tarjetas de crédito. Consultá con un asesor para conocer las promociones vigentes.
 COMPANY_SHIPPING_POLICY=Hacemos envíos a todo el país. Consultá con un asesor para confirmar costo y tiempo de entrega según tu zona.
 COMPANY_WARRANTY_POLICY=Todos nuestros productos tienen 6 meses de garantía. Consultá con un asesor para coordinar devoluciones o cambios.
+COMPANY_PRODUCT_CATEGORIES=MTB, ruta, gravel, ciudad
 ```
 
 **What changes with this config:**
@@ -82,6 +85,7 @@ COMPANY_WARRANTY_POLICY=Todos nuestros productos tienen 6 meses de garantía. Co
 - Location reply: *"Estamos en Córdoba Capital, Argentina..."*
 - Payment methods reply uses Acme's specific text
 - Shipping and warranty policies are Acme's
+- Product interest reply mentions Acme's categories: *"...qué uso le vas a dar (MTB, ruta, gravel, ciudad)..."*
 
 **What does NOT change:**
 

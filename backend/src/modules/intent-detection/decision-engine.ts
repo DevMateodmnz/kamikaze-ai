@@ -49,7 +49,7 @@ function buildReplyTemplates(
       '¡Chau! Si después tenés más consultas, no dudes en escribir. ¡Buena jornada!',
 
     product_interest:
-      'Buenísimo. Para orientarte mejor, decime: qué uso le vas a dar (MTB, ruta, gravel, ciudad), cuál es tu presupuesto aproximado y tu altura o talle si estás buscando una bici completa.',
+      `Buenísimo. Para orientarte mejor, decime: qué uso le vas a dar (${profile.productCategories}), cuál es tu presupuesto aproximado y qué características estás buscando.`,
 
     store_hours: `Nuestros horarios de atención son de ${profile.hours}. ¿Te queda alguna otra consulta?`,
 

@@ -19,6 +19,7 @@ const testProfile: BusinessProfile = {
   shippingPolicy:
     'Los envíos se coordinan directamente con un asesor. Consultá por tu zona para confirmar disponibilidad y costo.',
   warrantyPolicy: 'Consultá con un asesor sobre garantía y devoluciones.',
+  productCategories: 'MTB, ruta, gravel, ciudad',
 };
 
 // Mock aiGatewayRouter for classifyIntentWithFallback tests
@@ -245,6 +246,12 @@ describe('Decision Engine', () => {
       expect(decision.replyText).toContain('uso');
     });
 
+    it('product_interest reply does NOT mention bike-specific phrase', () => {
+      const decision = makeDecision('product_interest', 0.8, testProfile);
+      expect(decision.replyText).not.toContain('bici completa');
+      expect(decision.replyText).not.toContain('altura o talle');
+    });
+
     it('unknown reply should NOT invent stock or prices', () => {
       const decision = makeDecision('unknown', 0.5, testProfile);
       const text = decision.replyText ?? '';
@@ -308,6 +315,21 @@ describe('Decision Engine', () => {
       const decision = makeDecision('greeting', 0.8, custom);
       expect(decision.replyText).toContain('Acme Bikes');
       expect(decision.replyText).not.toContain('Kamikaze');
+    });
+
+    it('product_interest reply uses profile.productCategories', () => {
+      const custom: BusinessProfile = {
+        ...testProfile,
+        productCategories: 'remeras, pantalones, buzos',
+      };
+      const decision = makeDecision('product_interest', 0.8, custom);
+      expect(decision.replyText).toContain('remeras, pantalones, buzos');
+      expect(decision.replyText).not.toContain('MTB, ruta');
+    });
+
+    it('product_interest reply uses legacy bike categories by default', () => {
+      const decision = makeDecision('product_interest', 0.8, testProfile);
+      expect(decision.replyText).toContain('MTB, ruta, gravel, ciudad');
     });
   });
 

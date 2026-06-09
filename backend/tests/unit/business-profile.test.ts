@@ -38,6 +38,7 @@ describe('getBusinessProfile', () => {
       'hours',
       'location',
       'paymentMethods',
+      'productCategories',
       'shippingPolicy',
       'warrantyPolicy',
     ]);
@@ -140,5 +141,21 @@ describe('getBusinessProfile', () => {
     const profile = getBusinessProfile();
 
     expect(profile.paymentMethods).toMatch(/efectivo|tarjeta|MercadoPago/i);
+  });
+
+  // ── COMPANY_PRODUCT_CATEGORIES ──────────────────────────────────
+
+  it('default productCategories match Kamikaze legacy bike categories', () => {
+    const profile = getBusinessProfile();
+
+    expect(profile.productCategories).toBe('MTB, ruta, gravel, ciudad');
+  });
+
+  it('uses COMPANY_PRODUCT_CATEGORIES from env to override default', () => {
+    vi.stubEnv('COMPANY_PRODUCT_CATEGORIES', 'remeras, pantalones, buzos');
+
+    const profile = getBusinessProfile();
+
+    expect(profile.productCategories).toBe('remeras, pantalones, buzos');
   });
 });

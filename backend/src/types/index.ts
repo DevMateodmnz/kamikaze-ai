@@ -45,6 +45,9 @@ export interface Env {
   COMPANY_SHIPPING_POLICY: string;
   COMPANY_WARRANTY_POLICY: string;
 
+  // Company product categories (used in product-interest replies)
+  COMPANY_PRODUCT_CATEGORIES: string;
+
   // Human Escalation (Email / SMTP)
   SMTP_HOST: string;
   SMTP_PORT: number;

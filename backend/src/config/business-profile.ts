@@ -28,6 +28,8 @@ export interface BusinessProfile {
   shippingPolicy: string;
   /** Warranty / returns policy displayed to customers */
   warrantyPolicy: string;
+  /** Product categories shown in product-interest replies (comma-separated, e.g. "MTB, ruta, gravel, ciudad") */
+  productCategories: string;
 }
 
 // ── Legacy Kamikaze defaults ────────────────────────────────────────
@@ -42,6 +44,7 @@ const DEFAULT_SHIPPING_POLICY =
   'Los envíos se coordinan directamente con un asesor. Consultá por tu zona para confirmar disponibilidad y costo.';
 const DEFAULT_WARRANTY_POLICY =
   'Consultá con un asesor sobre garantía y devoluciones.';
+const DEFAULT_PRODUCT_CATEGORIES = 'MTB, ruta, gravel, ciudad';
 
 /**
  * Build a typed BusinessProfile from environment variables.
@@ -64,6 +67,7 @@ export function getBusinessProfile(): BusinessProfile {
     paymentMethods: process.env.COMPANY_PAYMENT_METHODS || DEFAULT_PAYMENT_METHODS,
     shippingPolicy: process.env.COMPANY_SHIPPING_POLICY || DEFAULT_SHIPPING_POLICY,
     warrantyPolicy: process.env.COMPANY_WARRANTY_POLICY || DEFAULT_WARRANTY_POLICY,
+    productCategories: process.env.COMPANY_PRODUCT_CATEGORIES || DEFAULT_PRODUCT_CATEGORIES,
   };
   /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
 }
