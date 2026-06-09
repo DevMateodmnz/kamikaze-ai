@@ -232,8 +232,11 @@ async function seed() {
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- || catches empty strings
   const companyName = process.env.COMPANY_NAME || 'Kamikaze Bikes';
 
-  // Merge inline entries + optional verified JSON entries
-  const allEntries = [...SEED_ENTRIES, ...loadVerifiedEntries()];
+  // If a verified KB file is provided, use ONLY that data (no inline bike entries).
+  // Otherwise fall back to inline Kamikaze seed entries.
+  const verifiedEntries = loadVerifiedEntries();
+  const hasVerifiedData = verifiedEntries.length > 0;
+  const allEntries = hasVerifiedData ? verifiedEntries : [...SEED_ENTRIES, ...verifiedEntries];
 
   let created = 0;
   let skipped = 0;

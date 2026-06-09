@@ -181,7 +181,11 @@ This section covers the safe procedure for populating `data/kb-verified.json` wi
 ### 1. Copy the template
 
 ```bash
+# For a real business: start from the template
 cp data/kb-verified.example.json data/kb-verified.json
+
+# For a quick demo: use the Acme Store demo data
+cp data/kb-verified-acme.example.json data/kb-verified.json
 ```
 
 `data/kb-verified.json` is gitignored (see `.gitignore` line 55). It must **never** be committed.
@@ -234,7 +238,8 @@ cd backend && npm run seed:kb
 ```
 
 The seed script:
-- Merges inline seed entries (inactive placeholders + 3 verified FAQs) with your `data/kb-verified.json` entries
+- If `data/kb-verified.json` exists and has entries → uses ONLY verified data (inline Kamikaze entries are skipped).
+- If `data/kb-verified.json` is missing or empty → falls back to inline Kamikaze seed entries (legacy demo).
 - Is **idempotent**: running twice won't create duplicates (matched by category + question)
 - Skips entries that already exist
 - Prints a summary: total entries, active count, inactive count

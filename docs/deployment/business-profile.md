@@ -143,3 +143,4 @@ To explicitly use Kamikaze defaults, either:
 - [Architecture overview](../architecture.md)
 - [Knowledge Base & Verified Data](../knowledge-base.md)
 - `.env.example` — full environment variable reference
+- `data/kb-verified-acme.example.json` — demo KB for a fictional store (copy to `data/kb-verified.json` before seeding)

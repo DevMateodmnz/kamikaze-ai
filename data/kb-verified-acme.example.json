@@ -1,0 +1,75 @@
+[
+  {
+    "_comment": "Demo KB for Acme Store — a fictional electronics/general store. Copy to data/kb-verified.json for demo. NOT real business data.",
+    "category": "store_info",
+    "question": "¿Cuáles son los horarios de atención?",
+    "answer": "Atendemos de lunes a viernes de 9 a 18, y sábados de 10 a 13. Domingos cerrado.",
+    "tags": ["horarios", "atencion", "store_hours"],
+    "confidence": 0.9,
+    "active": true
+  },
+  {
+    "category": "store_info",
+    "question": "¿Dónde están ubicados?",
+    "answer": "Estamos en Av. Ejemplo 1234, CABA. Frente al centro comercial.",
+    "tags": ["ubicacion", "direccion", "store_location"],
+    "confidence": 0.9,
+    "active": true
+  },
+  {
+    "category": "store_info",
+    "question": "¿Qué medios de pago aceptan?",
+    "answer": "Aceptamos efectivo, tarjeta de débito y crédito, MercadoPago y transferencia bancaria. Tenemos hasta 6 cuotas sin interés con tarjetas seleccionadas.",
+    "tags": ["pago", "tarjeta", "efectivo", "payment_methods"],
+    "confidence": 0.9,
+    "active": true
+  },
+  {
+    "category": "store_info",
+    "question": "¿Hacen envíos a domicilio?",
+    "answer": "Sí, hacemos envíos a todo el país. El costo y plazo dependen de tu ubicación. Consultá con un asesor para más detalles.",
+    "tags": ["envio", "entrega", "shipping"],
+    "confidence": 0.8,
+    "active": true
+  },
+  {
+    "category": "policy",
+    "question": "¿Tiene garantía?",
+    "answer": "Todos nuestros productos tienen garantía oficial del fabricante. El plazo varía según la marca y el tipo de producto. Consultá con un asesor.",
+    "tags": ["garantia", "warranty_or_return"],
+    "confidence": 0.8,
+    "active": true
+  },
+  {
+    "category": "policy",
+    "question": "¿Puedo devolver o cambiar un producto?",
+    "answer": "Tenés hasta 10 días para cambios y devoluciones, siempre que el producto esté en su empaque original y con ticket de compra. Consultá condiciones con un asesor.",
+    "tags": ["devolucion", "cambio", "warranty_or_return"],
+    "confidence": 0.8,
+    "active": true
+  },
+  {
+    "category": "faq",
+    "question": "¿Qué productos venden?",
+    "answer": "Acme Store ofrece electrónica, artículos para el hogar, tecnología y accesorios. Consultá con un asesor para conocer nuestro catálogo completo.",
+    "tags": ["productos", "catalogo", "faq"],
+    "confidence": 0.8,
+    "active": true
+  },
+  {
+    "category": "faq",
+    "question": "¿Tienen servicio técnico?",
+    "answer": "Sí, contamos con servicio técnico autorizado para la mayoría de las marcas que vendemos. Consultá con un asesor para coordinar una revisión.",
+    "tags": ["tecnico", "reparacion", "service", "faq"],
+    "confidence": 0.8,
+    "active": true
+  },
+  {
+    "category": "faq",
+    "question": "¿Cómo contacto un asesor humano?",
+    "answer": "Un asesor está disponible durante nuestro horario de atención. También podés pedir que te llamemos y te contactamos a la brevedad.",
+    "tags": ["asesor", "humano", "contacto", "faq"],
+    "confidence": 0.9,
+    "active": true
+  }
+]
