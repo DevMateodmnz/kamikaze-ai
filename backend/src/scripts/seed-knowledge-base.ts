@@ -27,7 +27,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Cuáles son los horarios de atención?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Los horarios de atención exactos deben ser confirmados con Kamikaze Bikes antes de activar esta respuesta. No inventar horarios.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Los horarios de atención exactos deben ser confirmados con {{COMPANY_NAME}} antes de activar esta respuesta. No inventar horarios.',
     tags: ['horarios', 'atencion', 'horas', 'store_hours'],
     confidence: 0.3, // Low confidence — placeholder
     active: false, // DO NOT ACTIVATE until verified
@@ -35,7 +35,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'A qué hora abren?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar horario de apertura con Kamikaze Bikes.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar horario de apertura con {{COMPANY_NAME}}.',
     tags: ['horarios', 'apertura', 'store_hours'],
     confidence: 0.3,
     active: false,
@@ -43,7 +43,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'A qué hora cierran?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar horario de cierre con Kamikaze Bikes.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar horario de cierre con {{COMPANY_NAME}}.',
     tags: ['horarios', 'cierre', 'store_hours'],
     confidence: 0.3,
     active: false,
@@ -55,7 +55,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Dónde están ubicados?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: La dirección exacta debe ser confirmada con Kamikaze Bikes antes de compartirla con clientes.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: La dirección exacta debe ser confirmada con {{COMPANY_NAME}} antes de compartirla con clientes.',
     tags: ['ubicacion', 'direccion', 'sucursal', 'store_location'],
     confidence: 0.3,
     active: false,
@@ -63,7 +63,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Tienen más de una sucursal?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar количество de sucursales y sus direcciones con Kamikaze Bikes.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar количество de sucursales y sus direcciones con {{COMPANY_NAME}}.',
     tags: ['sucursal', 'ubicacion', 'store_location'],
     confidence: 0.3,
     active: false,
@@ -71,7 +71,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Cómo llego a la tienda?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Proporcionar indicaciones de transporte solo después de que Kamikaze Bikes confirme la dirección exacta.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Proporcionar indicaciones de transporte solo después de que {{COMPANY_NAME}} confirme la dirección exacta.',
     tags: ['direccion', 'como_llegar', 'mapa', 'store_location'],
     confidence: 0.3,
     active: false,
@@ -83,7 +83,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Qué medios de pago aceptan?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Los métodos de pago exactos deben ser confirmados con Kamikaze Bikes. No inventar información financiera.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Los métodos de pago exactos deben ser confirmados con {{COMPANY_NAME}}. No inventar información financiera.',
     tags: ['pago', 'tarjeta', 'efectivo', 'mercadopago', 'payment_methods'],
     confidence: 0.3,
     active: false,
@@ -91,7 +91,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Puedo pagar con tarjeta?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar qué tipos de tarjeta acepta Kamikaze Bikes (débito, crédito, cuotas).',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar qué tipos de tarjeta acepta {{COMPANY_NAME}} (débito, crédito, cuotas).',
     tags: ['tarjeta', 'pago', 'cuotas', 'payment_methods'],
     confidence: 0.3,
     active: false,
@@ -99,7 +99,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Tienen financiación?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar opciones de financiación, cuotas y condiciones con Kamikaze Bikes.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar opciones de financiación, cuotas y condiciones con {{COMPANY_NAME}}.',
     tags: ['financiacion', 'cuotas', 'pago', 'payment_methods'],
     confidence: 0.3,
     active: false,
@@ -111,7 +111,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Hacen envíos a domicilio?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar si Kamikaze Bikes ofrece envío a domicilio, zonas de cobertura y costos.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar si {{COMPANY_NAME}} ofrece envío a domicilio, zonas de cobertura y costos.',
     tags: ['envio', 'entrega', 'domicilio', 'shipping'],
     confidence: 0.3,
     active: false,
@@ -119,7 +119,7 @@ const SEED_ENTRIES = [
   {
     category: 'store_info',
     question: 'Cuánto cuesta el envío?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Los costos de envío deben ser confirmados con Kamikaze Bikes antes de informar al cliente.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Los costos de envío deben ser confirmados con {{COMPANY_NAME}} antes de informar al cliente.',
     tags: ['envio', 'costo', 'shipping'],
     confidence: 0.3,
     active: false,
@@ -131,7 +131,7 @@ const SEED_ENTRIES = [
   {
     category: 'policy',
     question: 'Tiene garantía la bici?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: Los términos de garantía deben ser confirmados con Kamikaze Bikes antes de informar al cliente.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: Los términos de garantía deben ser confirmados con {{COMPANY_NAME}} antes de informar al cliente.',
     tags: ['garantia', 'warranty', 'warranty_or_return'],
     confidence: 0.3,
     active: false,
@@ -139,7 +139,7 @@ const SEED_ENTRIES = [
   {
     category: 'policy',
     question: 'Puedo devolver o cambiar la bici?',
-    answer: 'NEEDS_BUSINESS_VERIFICATION: La política de devoluciones/cambios debe ser confirmada con Kamikaze Bikes antes de compartirla.',
+    answer: 'NEEDS_BUSINESS_VERIFICATION: La política de devoluciones/cambios debe ser confirmada con {{COMPANY_NAME}} antes de compartirla.',
     tags: ['devolucion', 'cambio', 'return', 'warranty_or_return'],
     confidence: 0.3,
     active: false,
@@ -151,7 +151,7 @@ const SEED_ENTRIES = [
   {
     category: 'faq',
     question: 'Qué tipos de bicis venden?',
-    answer: 'KamiKaze Bikes ofrece bicicletas de todo tipo: MTB, ruta, gravel, urbanas y playeras. Consultá con un asesor para encontrar la que mejor se adapte a tu uso y presupuesto.',
+    answer: '{{COMPANY_NAME}} ofrece bicicletas de todo tipo: MTB, ruta, gravel, urbanas y playeras. Consultá con un asesor para encontrar la que mejor se adapte a tu uso y presupuesto.',
     tags: ['tipos', 'mtb', 'ruta', 'gravel', 'urbana'],
     confidence: 0.8, // Safe general info
     active: true,
@@ -167,7 +167,7 @@ const SEED_ENTRIES = [
   {
     category: 'faq',
     question: 'Hacen reparaciones?',
-    answer: 'Sí, KamiKaze Bikes ofrece servicio de reparaciones. Consultá con un asesor para confirmar disponibilidad y tiempos.',
+    answer: 'Sí, {{COMPANY_NAME}} ofrece servicio de reparaciones. Consultá con un asesor para confirmar disponibilidad y tiempos.',
     tags: ['reparacion', 'service', 'mantenimiento'],
     confidence: 0.6,
     active: true,
@@ -228,6 +228,10 @@ function loadVerifiedEntries(): typeof SEED_ENTRIES {
 async function seed() {
   console.log('🌱 Seeding knowledge base...');
 
+  // Resolve company name for seed data placeholders
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- || catches empty strings
+  const companyName = process.env.COMPANY_NAME || 'Kamikaze Bikes';
+
   // Merge inline entries + optional verified JSON entries
   const allEntries = [...SEED_ENTRIES, ...loadVerifiedEntries()];
 
@@ -253,7 +257,7 @@ async function seed() {
       data: {
         category: entry.category,
         question: entry.question,
-        answer: entry.answer,
+        answer: entry.answer.replace(/\{\{COMPANY_NAME\}\}/g, companyName),
         tags: entry.tags,
         confidence: entry.confidence,
         active: entry.active,

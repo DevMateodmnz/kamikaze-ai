@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
+import { getBusinessProfile } from '../../src/config/business-profile.js';
 
 // Use the same DATABASE_URL as main .env for integration tests
 // The test env override is removed so real DB connection is used
@@ -346,7 +347,7 @@ describe('KB Integration Tests', () => {
     it('store_hours intent uses template when no verified KB entry exists', async () => {
       if (!dbAvailable) return;
       const { makeDecision } = await import('../../src/modules/intent-detection/decision-engine.js');
-      const decision = makeDecision('store_hours', 0.8);
+      const decision = makeDecision('store_hours', 0.8, getBusinessProfile());
       expect(decision.action).toBe('reply');
       // Template still used when KB has no verified entry
       expect(decision.replyText).toBeTruthy();
@@ -357,7 +358,7 @@ describe('KB Integration Tests', () => {
       // This tests that the route correctly falls back to template
       // when getVerifiedAnswerForIntent returns null
       const { makeDecision } = await import('../../src/modules/intent-detection/decision-engine.js');
-      const decision = makeDecision('store_hours', 0.8);
+      const decision = makeDecision('store_hours', 0.8, getBusinessProfile());
       expect(decision.replyText).toContain('horarios');
     });
   });

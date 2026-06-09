@@ -1,8 +1,16 @@
 /**
- * Decision Engine Types
+ * Decision Engine
+ *
+ * Makes reply-vs-escalate decisions based on detected intent.
+ * Pure function — deterministic output for given input.
+ * No DB access. No external services. No env reads.
+ *
+ * Company-specific data is injected via BusinessProfile
+ * (passed from the call site, which reads env/config).
  */
 
 import type { Intent } from '../intent-detection/types.js';
+import type { BusinessProfile } from '../../config/business-profile.js';
 
 export type Action = 'reply' | 'escalate' | 'stored_only';
 
@@ -17,7 +25,11 @@ export interface DecisionResult {
 }
 
 /**
- * Safe response templates in Argentine Spanish.
+ * Build reply templates interpolated with business profile data.
+ *
+ * Templates that contain company-specific facts (name, hours, location,
+ * payment methods, shipping) read from the profile. Generic templates
+ * (thanks, goodbye, product_interest) and escalation sentinels are static.
  *
  * Rules:
  * - Never invent stock, prices, discounts, or warranty terms
@@ -25,60 +37,41 @@ export interface DecisionResult {
  * - Use friendly, commercial tone without emojis
  * - Escalate when uncertain about facts
  */
+function buildReplyTemplates(
+  profile: BusinessProfile
+): Record<Intent, string> {
+  return {
+    greeting: `¡Hola! Soy el asistente de ${profile.companyName}. Decime qué estás buscando y te ayudo a orientar la consulta.`,
 
-const REPLY_TEMPLATES: Record<Intent, string> = {
-  greeting:
-    '¡Hola! Soy el asistente de Kamikaze Bikes. Decime qué estás buscando y te ayudo a orientar la consulta.',
+    thanks: '¡De nada! Si necesitás algo más, acá estoy. ¡Saludos!',
 
-  thanks:
-    '¡De nada! Si necesitás algo más, acá estoy. ¡Saludos!',
+    goodbye:
+      '¡Chau! Si después tenés más consultas, no dudes en escribir. ¡Buena jornada!',
 
-  goodbye:
-    '¡Chau! Si después tenés más consultas, no dudes en escribir. ¡Buena jornada!',
+    product_interest:
+      'Buenísimo. Para orientarte mejor, decime: qué uso le vas a dar (MTB, ruta, gravel, ciudad), cuál es tu presupuesto aproximado y tu altura o talle si estás buscando una bici completa.',
 
-  product_interest:
-    'Buenísimo. Para orientarte mejor, decime: qué uso le vas a dar (MTB, ruta, gravel, ciudad), cuál es tu presupuesto aproximado y tu altura o talle si estás buscando una bici completa.',
+    store_hours: `Nuestros horarios de atención son de ${profile.hours}. ¿Te queda alguna otra consulta?`,
 
-  store_hours:
-    ' Nuestros horarios de atención son de lunes a sábado de 9 a 13 y de 17 a 20. Domingos cerrado. ¿Te queda alguna otra consulta?',
+    store_location: `Estamos en ${profile.location}. Podés visitar nuestras sucursales o escribirnos para más info. ¿Te queda alguna otra consulta?`,
 
-  store_location:
-    'Estamos en San Miguel de Tucumán. Podés visitar nuestras sucursales o escribirnos para más info. ¿Te queda alguna otra consulta?',
+    payment_methods: `${profile.paymentMethods} ¿Te queda alguna otra consulta?`,
 
-  payment_methods:
-    'Aceptamos efectivo, tarjeta de débito y crédito, MercadoPago y transferencia bancaria. También tenemos financiacion en hasta 12 cuotas. Consultá con un asesor para más detalles. ¿Te queda alguna otra consulta?',
+    shipping: `${profile.shippingPolicy} ¿Te queda alguna otra consulta?`,
 
-  shipping:
-    'Los envíos se coordinan directamente con un asesor. Consultá por tu zona para confirmar disponibilidad y costo. ¿Te queda alguna otra consulta?',
+    // ── Escalation sentinels (no company data needed) ──────────
+    stock_question: 'MSGR_ESCALATE_STOCK',
+    price_question: 'MSGR_ESCALATE_PRICE',
+    discount_request: 'MSGR_ESCALATE_DISCOUNT',
+    warranty_or_return: 'MSGR_ESCALATE_WARRANTY',
+    complaint: 'MSGR_ESCALATE_COMPLAINT',
+    human_request: 'MSGR_ESCALATE_HUMAN',
 
-  // stock_question returns escalate (stock is a critical fact)
-  stock_question:
-    'MSGR_ESCALATE_STOCK',
-
-  // price_question — safe only if the response is general, not specific
-  price_question:
-    'MSGR_ESCALATE_PRICE',
-
-  // discount_request always escalates (pricing decisions)
-  discount_request:
-    'MSGR_ESCALATE_DISCOUNT',
-
-  // warranty_or_return always escalates (legal/policy)
-  warranty_or_return:
-    'MSGR_ESCALATE_WARRANTY',
-
-  // complaint always escalates (customer emotion)
-  complaint:
-    'MSGR_ESCALATE_COMPLAINT',
-
-  // human_request always escalates (explicit request)
-  human_request:
-    'MSGR_ESCALATE_HUMAN',
-
-  // unknown — safe fallback
-  unknown:
-    'Gracias por tu mensaje. Un asesor te va a responder a la brevedad. ¡Saludos!',
-};
+    // ── Safe fallback ─────────────────────────────────────────
+    unknown:
+      'Gracias por tu mensaje. Un asesor te va a responder a la brevedad. ¡Saludos!',
+  };
+}
 
 const ESCALATION_REASONS: Record<Intent, string> = {
   greeting: 'not_used',
@@ -99,9 +92,13 @@ const ESCALATION_REASONS: Record<Intent, string> = {
 };
 
 /**
- * Make a decision based on intent and optional context.
+ * Make a decision based on intent, confidence, and business profile.
  *
- * Returns a DecisionResult with action, reply text, and escalation reason.
+ * @param intent   The detected customer intent
+ * @param confidence  Classification confidence (0-1)
+ * @param profile  Business profile with company identity and facts.
+ *                 Passed from the call site — this function does NOT
+ *                 read env vars or external config directly.
  *
  * IMPORTANT:
  * - Does NOT access database or external services
@@ -110,8 +107,11 @@ const ESCALATION_REASONS: Record<Intent, string> = {
  */
 export function makeDecision(
   intent: Intent,
-  confidence: number
+  confidence: number,
+  profile: BusinessProfile
 ): DecisionResult {
+  const templates = buildReplyTemplates(profile);
+
   // Check if this intent requires escalation
   const escalateIntents: Intent[] = [
     'human_request',
@@ -150,7 +150,7 @@ export function makeDecision(
   ];
 
   if (safeReplyIntents.includes(intent)) {
-    const replyText = REPLY_TEMPLATES[intent];
+    const replyText = templates[intent];
 
     return {
       action: 'reply',

@@ -44,6 +44,13 @@ const envSchema = z.object({
   COMPANY_NAME: z.string().default('Mi Empresa'),
   COMPANY_BUSINESS_TYPE: z.string().default('comercio'),
 
+  // Company business facts (override per deployment, Legacy Kamikaze defaults)
+  COMPANY_HOURS: z.string().default('lunes a sábado de 9 a 13 y de 17 a 20. Domingos cerrado'),
+  COMPANY_LOCATION: z.string().default('San Miguel de Tucumán'),
+  COMPANY_PAYMENT_METHODS: z.string().default('Aceptamos efectivo, tarjeta de débito y crédito, MercadoPago y transferencia bancaria. También tenemos financiacion en hasta 12 cuotas. Consultá con un asesor para más detalles.'),
+  COMPANY_SHIPPING_POLICY: z.string().default('Los envíos se coordinan directamente con un asesor. Consultá por tu zona para confirmar disponibilidad y costo.'),
+  COMPANY_WARRANTY_POLICY: z.string().default('Consultá con un asesor sobre garantía y devoluciones.'),
+
   // CORS
   CORS_ORIGINS: z.string().optional(),
 });
@@ -102,6 +109,11 @@ function buildRawEnv() {
     AI_REPLIES_ENABLED: process.env.AI_REPLIES_ENABLED,
     COMPANY_NAME: process.env.COMPANY_NAME,
     COMPANY_BUSINESS_TYPE: process.env.COMPANY_BUSINESS_TYPE,
+    COMPANY_HOURS: process.env.COMPANY_HOURS,
+    COMPANY_LOCATION: process.env.COMPANY_LOCATION,
+    COMPANY_PAYMENT_METHODS: process.env.COMPANY_PAYMENT_METHODS,
+    COMPANY_SHIPPING_POLICY: process.env.COMPANY_SHIPPING_POLICY,
+    COMPANY_WARRANTY_POLICY: process.env.COMPANY_WARRANTY_POLICY,
     CORS_ORIGINS: process.env.CORS_ORIGINS,
   };
 }

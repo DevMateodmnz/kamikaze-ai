@@ -6,6 +6,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { detectIntent } from '../../src/modules/intent-detection/detector.js';
 import { makeDecision } from '../../src/modules/intent-detection/decision-engine.js';
 import type { Intent } from '../../src/modules/intent-detection/types.js';
+import type { BusinessProfile } from '../../src/config/business-profile.js';
+
+// Test profile matching Kamikaze legacy defaults for backward compatibility
+const testProfile: BusinessProfile = {
+  companyName: 'Kamikaze Bikes',
+  businessType: 'bicicletería',
+  hours: 'lunes a sábado de 9 a 13 y de 17 a 20. Domingos cerrado',
+  location: 'San Miguel de Tucumán',
+  paymentMethods:
+    'Aceptamos efectivo, tarjeta de débito y crédito, MercadoPago y transferencia bancaria. También tenemos financiacion en hasta 12 cuotas. Consultá con un asesor para más detalles.',
+  shippingPolicy:
+    'Los envíos se coordinan directamente con un asesor. Consultá por tu zona para confirmar disponibilidad y costo.',
+  warrantyPolicy: 'Consultá con un asesor sobre garantía y devoluciones.',
+};
 
 // Mock aiGatewayRouter for classifyIntentWithFallback tests
 vi.mock('../../src/modules/ai-gateway/router.js', () => ({
@@ -186,7 +200,7 @@ describe('Decision Engine', () => {
 
     for (const intent of escalateIntents) {
       it(`${intent} should return action=escalate`, () => {
-        const decision = makeDecision(intent, 0.8);
+        const decision = makeDecision(intent, 0.8, testProfile);
         expect(decision.action).toBe('escalate');
         expect(decision.escalationReason).toBeTruthy();
         expect(decision.replyText).toBeNull();
@@ -210,7 +224,7 @@ describe('Decision Engine', () => {
 
     for (const intent of replyIntents) {
       it(`${intent} should return action=reply with replyText`, () => {
-        const decision = makeDecision(intent, 0.8);
+        const decision = makeDecision(intent, 0.8, testProfile);
         expect(decision.action).toBe('reply');
         expect(decision.replyText).toBeTruthy();
         expect(decision.escalationReason).toBeNull();
@@ -220,19 +234,19 @@ describe('Decision Engine', () => {
   });
 
   describe('reply content rules', () => {
-    it('greeting reply should contain kamikaze bikes reference', () => {
-      const decision = makeDecision('greeting', 0.8);
-      expect(decision.replyText).toContain('Kamikaze');
+    it('greeting reply should contain profile company name', () => {
+      const decision = makeDecision('greeting', 0.8, testProfile);
+      expect(decision.replyText).toContain(testProfile.companyName);
     });
 
     it('product_interest reply should ask qualifying questions', () => {
-      const decision = makeDecision('product_interest', 0.8);
+      const decision = makeDecision('product_interest', 0.8, testProfile);
       expect(decision.replyText).toContain('presupuesto');
       expect(decision.replyText).toContain('uso');
     });
 
     it('unknown reply should NOT invent stock or prices', () => {
-      const decision = makeDecision('unknown', 0.5);
+      const decision = makeDecision('unknown', 0.5, testProfile);
       const text = decision.replyText ?? '';
       expect(text).not.toMatch(/stock|precio|descuento|oferta/i);
     });
@@ -240,8 +254,60 @@ describe('Decision Engine', () => {
 
   describe('confidence passthrough', () => {
     it('should preserve confidence value', () => {
-      const decision = makeDecision('greeting', 0.55);
+      const decision = makeDecision('greeting', 0.55, testProfile);
       expect(decision.confidence).toBe(0.55);
+    });
+  });
+
+  // ── Business profile integration ─────────────────────────────────
+
+  describe('business profile templates', () => {
+    it('store_hours reply uses profile.hours', () => {
+      const custom: BusinessProfile = {
+        ...testProfile,
+        hours: 'L a V de 10 a 18. Sábados 10 a 13.',
+      };
+      const decision = makeDecision('store_hours', 0.8, custom);
+      expect(decision.replyText).toContain('L a V de 10 a 18');
+      expect(decision.replyText).not.toContain('9 a 13'); // default not used
+    });
+
+    it('store_location reply uses profile.location', () => {
+      const custom: BusinessProfile = {
+        ...testProfile,
+        location: 'Córdoba Capital',
+      };
+      const decision = makeDecision('store_location', 0.8, custom);
+      expect(decision.replyText).toContain('Córdoba Capital');
+      expect(decision.replyText).not.toContain('San Miguel');
+    });
+
+    it('payment_methods reply uses profile.paymentMethods', () => {
+      const custom: BusinessProfile = {
+        ...testProfile,
+        paymentMethods: 'Efectivo. Consultá con un asesor.',
+      };
+      const decision = makeDecision('payment_methods', 0.8, custom);
+      expect(decision.replyText).toContain('Efectivo. Consultá con un asesor.');
+    });
+
+    it('shipping reply uses profile.shippingPolicy', () => {
+      const custom: BusinessProfile = {
+        ...testProfile,
+        shippingPolicy: 'Envíos gratis en CABA.',
+      };
+      const decision = makeDecision('shipping', 0.8, custom);
+      expect(decision.replyText).toContain('Envíos gratis en CABA.');
+    });
+
+    it('greeting reply uses profile.companyName', () => {
+      const custom: BusinessProfile = {
+        ...testProfile,
+        companyName: 'Acme Bikes',
+      };
+      const decision = makeDecision('greeting', 0.8, custom);
+      expect(decision.replyText).toContain('Acme Bikes');
+      expect(decision.replyText).not.toContain('Kamikaze');
     });
   });
 

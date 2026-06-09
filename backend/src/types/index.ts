@@ -38,6 +38,13 @@ export interface Env {
   COMPANY_NAME: string;
   COMPANY_BUSINESS_TYPE: string;
 
+  // Company business facts (override per deployment, legacy defaults for Kamikaze)
+  COMPANY_HOURS: string;
+  COMPANY_LOCATION: string;
+  COMPANY_PAYMENT_METHODS: string;
+  COMPANY_SHIPPING_POLICY: string;
+  COMPANY_WARRANTY_POLICY: string;
+
   // CORS
   CORS_ORIGINS?: string;
 }

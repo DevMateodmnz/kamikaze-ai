@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
+import { getBusinessProfile } from '../../src/config/business-profile.js';
 
 // Use the same DATABASE_URL as main .env for integration tests
 import { prisma } from '../../src/config/database.js';
@@ -233,7 +234,7 @@ describe('Escalations Integration Tests', () => {
     it('stock_question intent should create escalation record', async () => {
       if (!dbAvailable) return;
       const { makeDecision } = await import('../../src/modules/intent-detection/decision-engine.js');
-      const decision = makeDecision('stock_question', 0.8);
+      const decision = makeDecision('stock_question', 0.8, getBusinessProfile());
       expect(decision.action).toBe('escalate');
       expect(decision.escalationReason).toBe('stock_confirmation_required');
     });
@@ -241,7 +242,7 @@ describe('Escalations Integration Tests', () => {
     it('human_request intent should create escalation record', async () => {
       if (!dbAvailable) return;
       const { makeDecision } = await import('../../src/modules/intent-detection/decision-engine.js');
-      const decision = makeDecision('human_request', 0.8);
+      const decision = makeDecision('human_request', 0.8, getBusinessProfile());
       expect(decision.action).toBe('escalate');
       expect(decision.escalationReason).toBe('explicit_human_request');
     });
@@ -249,7 +250,7 @@ describe('Escalations Integration Tests', () => {
     it('reply intents should NOT create escalation', async () => {
       if (!dbAvailable) return;
       const { makeDecision } = await import('../../src/modules/intent-detection/decision-engine.js');
-      const greetingDecision = makeDecision('greeting', 0.8);
+      const greetingDecision = makeDecision('greeting', 0.8, getBusinessProfile());
       expect(greetingDecision.action).toBe('reply');
       expect(greetingDecision.escalationReason).toBeNull();
     });

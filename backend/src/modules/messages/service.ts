@@ -6,6 +6,7 @@
 
 import { prisma } from '../../config/database.js';
 import { validateEnv } from '../../config/env.js';
+import { getBusinessProfile } from '../../config/business-profile.js';
 import type { StoredMessage, MessageProcessingTrace } from './types.js';
 import { customersService } from '../customers/service.js';
 import { conversationsService } from '../conversations/service.js';
@@ -307,8 +308,8 @@ export async function processInboundMessage(
   // Classify intent (AI-enhanced with deterministic fallback)
   const detection = await classifyIntentWithFallback(input.text);
 
-  // Make decision
-  const decision = makeDecision(detection.intent, detection.confidence);
+  // Make decision (passes business profile so decision engine stays env-agnostic)
+  const decision = makeDecision(detection.intent, detection.confidence, getBusinessProfile());
 
   // Trace metadata — collected during processing
   const aiReplyEnabled = validateEnv().AI_REPLIES_ENABLED;
