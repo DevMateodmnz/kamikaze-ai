@@ -120,13 +120,24 @@ export function detectIntent(
 ): IntentDetectionResult {
   const normalized = config.caseInsensitive ? text.toLowerCase() : text;
 
+  // Build product_interest keywords: static bike keywords + configurable categories
+  const productKeywords = [...INTENT_KEYWORDS.product_interest];
+  if (config.productCategories && config.productCategories.length > 0) {
+    for (const cat of config.productCategories) {
+      const trimmed = cat.trim().toLowerCase();
+      if (trimmed && !productKeywords.includes(trimmed)) {
+        productKeywords.push(trimmed);
+      }
+    }
+  }
+
   // Score each intent by matching keywords
   const scores: Map<Intent, { score: number; matched: string[] }> = new Map<Intent, { score: number; matched: string[] }>();
 
   for (const intent of INTENT_PRIORITY) {
     if (intent === 'unknown') continue;
 
-    const keywords = INTENT_KEYWORDS[intent];
+    const keywords = intent === 'product_interest' ? productKeywords : INTENT_KEYWORDS[intent];
     const matched: string[] = [];
 
     for (const keyword of keywords) {

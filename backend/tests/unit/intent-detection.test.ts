@@ -150,6 +150,64 @@ describe('Intent Detection', () => {
     });
   });
 
+  describe('product_interest with configurable categories', () => {
+    const electronicsCategories = ['notebook', 'notebooks', 'auriculares', 'celulares', 'tablets'];
+
+    it('should detect "quiero una notebook" as product_interest', () => {
+      const result = detectIntent('Quiero una notebook', {
+        minKeywordMatches: 1,
+        caseInsensitive: true,
+        productCategories: electronicsCategories,
+      });
+      expect(result.intent).toBe('product_interest');
+    });
+
+    it('should detect "tenés auriculares?" as product_interest', () => {
+      const result = detectIntent('Tenés auriculares?', {
+        minKeywordMatches: 1,
+        caseInsensitive: true,
+        productCategories: electronicsCategories,
+      });
+      expect(result.intent).toBe('product_interest');
+    });
+
+    it('should classify "celulares" as product_interest when alone', () => {
+      const result = detectIntent('Me interesan los celulares', {
+        minKeywordMatches: 1,
+        caseInsensitive: true,
+        productCategories: electronicsCategories,
+      });
+      expect(result.intent).toBe('product_interest');
+    });
+
+    it('should still detect bike keywords with custom categories', () => {
+      const result = detectIntent('Busco una bici MTB', {
+        minKeywordMatches: 1,
+        caseInsensitive: true,
+        productCategories: electronicsCategories,
+      });
+      expect(result.intent).toBe('product_interest');
+    });
+
+    it('should NOT detect unrelated text as product_interest', () => {
+      const result = detectIntent('Hola, cómo están?', {
+        minKeywordMatches: 1,
+        caseInsensitive: true,
+        productCategories: electronicsCategories,
+      });
+      expect(result.intent).not.toBe('product_interest');
+    });
+
+    it('should match case-insensitively', () => {
+      const result = detectIntent('Me interesan las NOTEBOOKS gamer', {
+        minKeywordMatches: 1,
+        caseInsensitive: true,
+        productCategories: electronicsCategories,
+      });
+      expect(result.intent).toBe('product_interest');
+    });
+  });
+
   describe('store_hours', () => {
     it('should detect horarios', () => {
       const result = detectIntent('Cuáles son los horarios de atención?');

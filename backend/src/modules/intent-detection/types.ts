@@ -44,6 +44,8 @@ export interface IntentDetectorConfig {
   minKeywordMatches: number;
   /** Case insensitive matching */
   caseInsensitive: boolean;
+  /** Additional product categories for product_interest matching (from BusinessProfile) */
+  productCategories?: string[];
 }
 
 export const DEFAULT_CONFIG: IntentDetectorConfig = {

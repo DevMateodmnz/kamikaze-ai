@@ -16,6 +16,7 @@ import { getVerifiedAnswerForIntent } from '../knowledge-base/service.js';
 import { escalationsService } from '../escalations/service.js';
 import type { Intent } from '../intent-detection/types.js';
 import type { IntentDetectionResult } from '../intent-detection/types.js';
+import type { IntentDetectorConfig } from '../intent-detection/types.js';
 import { aiGatewayRouter } from '../ai-gateway/router.js';
 import type { Intent as AiIntent } from '../ai-gateway/types.js';
 import { validateAiReply } from './ai-reply-guardrails.js';
@@ -306,10 +307,20 @@ export async function processInboundMessage(
   }
 
   // Classify intent (AI-enhanced with deterministic fallback)
-  const detection = await classifyIntentWithFallback(input.text);
+  // Pass product categories from business profile so detector can match them
+  const businessProfile = getBusinessProfile();
+  const detectorConfig: IntentDetectorConfig = {
+    minKeywordMatches: 1,
+    caseInsensitive: true,
+    productCategories: businessProfile.productCategories
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean),
+  };
+  const detection = await classifyIntentWithFallback(input.text, detectorConfig);
 
   // Make decision (passes business profile so decision engine stays env-agnostic)
-  const decision = makeDecision(detection.intent, detection.confidence, getBusinessProfile());
+  const decision = makeDecision(detection.intent, detection.confidence, businessProfile);
 
   // Trace metadata — collected during processing
   const aiReplyEnabled = validateEnv().AI_REPLIES_ENABLED;
@@ -476,10 +487,11 @@ function getConfidenceThreshold(): number {
  * Never throws — always returns a valid IntentDetectionResult.
  */
 export async function classifyIntentWithFallback(
-  text: string
+  text: string,
+  detectorConfig?: IntentDetectorConfig
 ): Promise<IntentDetectionResult> {
   // Always compute deterministic result first (fast, zero-cost, no network)
-  const deterministicResult = detectIntent(text);
+  const deterministicResult = detectIntent(text, detectorConfig);
 
   // Explicit disable: skip AI entirely, return deterministic
   if (!validateEnv().AI_CLASSIFICATION_ENABLED) {
