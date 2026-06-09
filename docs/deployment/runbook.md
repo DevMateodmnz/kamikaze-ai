@@ -165,12 +165,19 @@ WHATSAPP_OUTBOUND_ENABLED=true
 WHATSAPP_OUTBOUND_MODE=dry_run
 ```
 
+**Quick demo**: run the automated demo script:
+```bash
+./scripts/demo-dry-run.sh
+```
+
+**Manual curl examples**:
+
 ### 5.1 Greeting
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
-  -d '{"from":"+5493811111111","text":"Hola, buenos días"}' | jq .
+  -d '{"whatsappMessageId":"demo-001","from":"+5493811111111","text":"Hola, buenos días"}' | jq .
 ```
 
 Expected:
@@ -186,7 +193,7 @@ Expected:
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
-  -d '{"from":"+5493812222222","text":"Qué productos tienen?"}' | jq .
+  -d '{"whatsappMessageId":"demo-002","from":"+5493812222222","text":"Qué productos tienen?"}' | jq .
 ```
 
 Expected:
@@ -199,7 +206,7 @@ Expected:
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
-  -d '{"from":"+5493813333333","text":"Esto es una porquería, estoy muy enojado"}' | jq .
+  -d '{"whatsappMessageId":"demo-003","from":"+5493813333333","text":"Esto es una porquería, estoy muy enojado"}' | jq .
 ```
 
 Expected:
