@@ -4,25 +4,32 @@
  * Sends text replies to customers via Meta's WhatsApp Cloud API.
  * Disabled by default (WHATSAPP_OUTBOUND_ENABLED=false).
  *
+ * Supports a credential-free dry-run mode for local demos and testing.
+ * Set WHATSAPP_OUTBOUND_MODE=dry_run to simulate delivery without Meta API.
+ *
  * Never throws — always returns a result object.
  * Never logs access tokens or phone numbers.
  */
 
 /** Result of an outbound delivery attempt. */
 export interface WhatsAppDeliveryResult {
-  /** Whether the message was successfully sent to WhatsApp. */
+  /** Whether the message was successfully sent. */
   sent: boolean;
   /** Reason for the result (for trace/debug). */
-  reason: 'disabled' | 'config_missing' | 'delivered' | 'delivery_failed';
-  /** WhatsApp message ID from Meta on success. */
+  reason: 'disabled' | 'config_missing' | 'delivered' | 'delivery_failed' | 'dry_run';
+  /** Message ID from WhatsApp on success, or a deterministic dry-run ID. */
   waMessageId?: string;
 }
 
 /**
  * Attempt to send a text reply through the WhatsApp Cloud API.
  *
- * Safe by default: does nothing unless WHATSAPP_OUTBOUND_ENABLED is 'true'
- * AND required credentials are configured.
+ * Delivery mode (WHATSAPP_OUTBOUND_MODE):
+ *   - live (default): real WhatsApp Cloud API delivery — requires credentials.
+ *   - dry_run: simulated delivery — no Meta API call, no credentials needed.
+ *     Returns { sent: true, reason: 'dry_run', waMessageId: 'dryrun_<ts>' }.
+ *
+ * Safe by default: does nothing unless WHATSAPP_OUTBOUND_ENABLED is 'true'.
  *
  * Message content is the TEXT to send. Phone number is the recipient.
  * Never prints tokens or phone numbers.
@@ -32,8 +39,17 @@ export async function attemptWhatsAppDelivery(
   to: string
 ): Promise<WhatsAppDeliveryResult> {
   // Feature flag gate
-  if (process.env['WHATSAPP_OUTBOUND_ENABLED'] !== 'true') {
+  if (process.env.WHATSAPP_OUTBOUND_ENABLED !== 'true') {
     return { sent: false, reason: 'disabled' };
+  }
+
+  // Dry-run mode: credential-free simulated delivery (no Meta API call)
+  if (process.env.WHATSAPP_OUTBOUND_MODE === 'dry_run') {
+    return {
+      sent: true,
+      reason: 'dry_run',
+      waMessageId: `dryrun_${Date.now()}`,
+    };
   }
 
   const accessToken = process.env['WHATSAPP_ACCESS_TOKEN'];

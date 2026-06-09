@@ -352,6 +352,38 @@ describe('inspectMessageProcessing', () => {
     expect(inspection.outboundDelivery!.reason).toBe('disabled');
   });
 
+  // ── Dry-run delivery ─────────────────────────────────────────────
+
+  it('reports dry-run delivery with simulated note', () => {
+    const result = baseResult();
+    result.processing!.trace = makeTrace({
+      outboundDelivery: {
+        attempted: true,
+        sent: true,
+        reason: 'dry_run',
+        waMessageId: 'dryrun_1712345678000',
+      },
+    });
+
+    const inspection = inspectMessageProcessing(result);
+
+    expect(inspection.outboundDelivery).toBeDefined();
+    expect(inspection.outboundDelivery!.attempted).toBe(true);
+    expect(inspection.outboundDelivery!.sent).toBe(true);
+    expect(inspection.outboundDelivery!.reason).toBe('dry_run');
+    expect(inspection.outboundDelivery!.waMessageId).toBe('dryrun_1712345678000');
+    const dryNote = inspection.notes.find((n) =>
+      n.toLowerCase().includes('dry-run delivery simulated')
+    );
+    expect(dryNote).toBeDefined();
+    expect(dryNote).toContain('No Meta API call');
+    // Must NOT claim "WhatsApp delivery succeeded"
+    const successNote = inspection.notes.find((n) =>
+      n.toLowerCase().includes('whatsapp delivery succeeded')
+    );
+    expect(successNote).toBeUndefined();
+  });
+
   it('does NOT expose access tokens in outboundDelivery', () => {
     const result = baseResult();
     result.processing!.trace = makeTrace({

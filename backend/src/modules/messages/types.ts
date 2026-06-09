@@ -72,7 +72,7 @@ export interface OutboundDeliveryTrace {
   /** Whether WhatsApp accepted the message. */
   sent: boolean;
   /** Reason for the delivery result. */
-  reason: 'disabled' | 'config_missing' | 'delivered' | 'delivery_failed';
+  reason: 'disabled' | 'config_missing' | 'delivered' | 'delivery_failed' | 'dry_run';
   /** WhatsApp message ID from Meta on success. */
   waMessageId?: string;
 }

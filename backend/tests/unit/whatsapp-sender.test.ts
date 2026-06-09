@@ -62,6 +62,69 @@ describe('attemptWhatsAppDelivery', () => {
     expect(result.reason).toBe('config_missing');
   });
 
+  // ── Dry-run mode ─────────────────────────────────────────────────
+
+  it('returns { sent: true, reason: "dry_run" } when WHATSAPP_OUTBOUND_MODE=dry_run', async () => {
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
+    vi.stubEnv('WHATSAPP_OUTBOUND_MODE', 'dry_run');
+
+    const result = await attemptWhatsAppDelivery('Hola', '+5490000000000');
+
+    expect(result.sent).toBe(true);
+    expect(result.reason).toBe('dry_run');
+    expect(result.waMessageId).toBeDefined();
+    expect(result.waMessageId).toMatch(/^dryrun_/);
+  });
+
+  it('dry_run mode does NOT call Meta API (no fetch)', async () => {
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
+    vi.stubEnv('WHATSAPP_OUTBOUND_MODE', 'dry_run');
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'token-123');
+    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '123456');
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await attemptWhatsAppDelivery('Hola', '+5490000000000');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('dry_run returns unique waMessageId per call', async () => {
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
+    vi.stubEnv('WHATSAPP_OUTBOUND_MODE', 'dry_run');
+
+    const r1 = await attemptWhatsAppDelivery('Hola', '+5490000000000');
+    // Small delay to guarantee different timestamp
+    await new Promise((r) => setTimeout(r, 2));
+    const r2 = await attemptWhatsAppDelivery('Hola', '+5490000000000');
+
+    expect(r1.waMessageId).not.toBe(r2.waMessageId);
+  });
+
+  it('dry_run still respects WHATSAPP_OUTBOUND_ENABLED=false → disabled', async () => {
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'false');
+    vi.stubEnv('WHATSAPP_OUTBOUND_MODE', 'dry_run');
+
+    const result = await attemptWhatsAppDelivery('Hola', '+5490000000000');
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe('disabled');
+  });
+
+  it('dry_run does not expose credentials or tokens', async () => {
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
+    vi.stubEnv('WHATSAPP_OUTBOUND_MODE', 'dry_run');
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'secret-token-xyz');
+    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '123456');
+
+    const result = await attemptWhatsAppDelivery('Hola', '+5490000000000');
+    const json = JSON.stringify(result);
+
+    expect(json).not.toContain('secret-token-xyz');
+    expect(json).not.toContain('Bearer');
+  });
+
   // ── Successful delivery (mocked) ──────────────────────────────────
 
   it('sends correct WhatsApp Cloud API request when enabled and configured', async () => {

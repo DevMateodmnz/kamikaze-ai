@@ -117,7 +117,12 @@ export function inspectMessageProcessing(
   // Outbound delivery note
   if (trace.outboundDelivery) {
     const od = trace.outboundDelivery;
-    if (od.sent) {
+    if (od.reason === 'dry_run') {
+      notes.push(
+        `Dry-run delivery simulated (id: ${od.waMessageId ?? 'unknown'}). ` +
+        'No Meta API call was made.'
+      );
+    } else if (od.sent) {
       notes.push(`WhatsApp delivery succeeded (id: ${od.waMessageId ?? 'unknown'}).`);
     } else if (!od.attempted) {
       notes.push(`WhatsApp delivery not attempted (reason: ${od.reason}).`);

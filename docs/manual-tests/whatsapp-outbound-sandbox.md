@@ -258,6 +258,83 @@ Or set `WHATSAPP_OUTBOUND_ENABLED=false` in `.env` before the next start.
 
 ---
 
+## Credential-Free Dry-Run Mode
+
+When Meta sandbox credentials are not available, use `WHATSAPP_OUTBOUND_MODE=dry_run` to simulate outbound delivery without calling the WhatsApp Cloud API.
+
+### How It Works
+
+- The backend generates a simulated delivery result: `sent: true`, `reason: 'dry_run'`, `waMessageId: 'dryrun_<timestamp>'`.
+- No Meta API call is made — no credentials are required.
+- The store-first outbound pattern is preserved (message is stored before delivery).
+- The trace clearly distinguishes dry-run from real delivery.
+- Real WhatsApp outbound (`WHATSAPP_OUTBOUND_MODE=live`, the default) is unchanged.
+
+### Quick Dry-Run Demo
+
+```bash
+cd backend
+WHATSAPP_OUTBOUND_ENABLED=true \
+  WHATSAPP_OUTBOUND_MODE=dry_run \
+  AI_CLASSIFICATION_ENABLED=false \
+  AI_REPLIES_ENABLED=false \
+  npx tsx src/server.ts
+```
+
+Send a test message (any phone number works — no real WhatsApp required):
+
+```bash
+INTERNAL_API_KEY=<your_backend_api_key>
+
+curl -X POST http://localhost:3000/api/v1/messages/process \
+  -H "X-API-Key: $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "whatsappMessageId": "wa-dryrun-001",
+    "from": "+15550000000",
+    "text": "Hola, buenos días"
+  }' | jq .
+```
+
+### Expected Dry-Run Trace
+
+```json
+{
+  "success": true,
+  "duplicate": false,
+  "processing": {
+    "intent": "greeting",
+    "action": "reply",
+    "trace": {
+      "intent": "greeting",
+      "intentSource": "deterministic",
+      "replySource": "template",
+      "aiIntentUsed": false,
+      "aiReplyUsed": false,
+      "outboundDelivery": {
+        "attempted": true,
+        "sent": true,
+        "reason": "dry_run",
+        "waMessageId": "dryrun_1712345678000"
+      }
+    }
+  }
+}
+```
+
+### Key Differences from Real WhatsApp Delivery
+
+| Aspect | Dry-Run | Live |
+|--------|---------|------|
+| Meta API call | No | Yes |
+| Credentials required | No | Yes (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`) |
+| `outboundDelivery.reason` | `dry_run` | `delivered` or `delivery_failed` |
+| `waMessageId` format | `dryrun_<timestamp>` | `wamid.xxxxxxxxxxxx` (Meta format) |
+| Customer receives WhatsApp | No (simulated) | Yes |
+| Useful for | Local dev, CI, demos without Meta | Production, real sandbox testing |
+
+---
+
 ## Manual Test Report Checklist
 
 Before considering the outbound delivery verified:
