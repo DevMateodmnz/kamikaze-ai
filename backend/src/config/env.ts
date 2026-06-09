@@ -51,6 +51,15 @@ const envSchema = z.object({
   COMPANY_SHIPPING_POLICY: z.string().default('Los envíos se coordinan directamente con un asesor. Consultá por tu zona para confirmar disponibilidad y costo.'),
   COMPANY_WARRANTY_POLICY: z.string().default('Consultá con un asesor sobre garantía y devoluciones.'),
 
+  // Human Escalation (Email / SMTP)
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: envBoolean.default(false),
+  SMTP_USER: z.string().min(1, 'SMTP_USER is required for escalation email'),
+  SMTP_PASS: z.string().min(1, 'SMTP_PASS is required for escalation email'),
+  ESCALATION_EMAIL_FROM: z.string().min(1, 'ESCALATION_EMAIL_FROM is required'),
+  ESCALATION_EMAIL_TO: z.string().min(1, 'ESCALATION_EMAIL_TO is required'),
+
   // CORS
   CORS_ORIGINS: z.string().optional(),
 });
@@ -114,6 +123,13 @@ function buildRawEnv() {
     COMPANY_PAYMENT_METHODS: process.env.COMPANY_PAYMENT_METHODS,
     COMPANY_SHIPPING_POLICY: process.env.COMPANY_SHIPPING_POLICY,
     COMPANY_WARRANTY_POLICY: process.env.COMPANY_WARRANTY_POLICY,
+    SMTP_HOST: process.env.SMTP_HOST,
+    SMTP_PORT: process.env.SMTP_PORT,
+    SMTP_SECURE: process.env.SMTP_SECURE,
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_PASS: process.env.SMTP_PASS,
+    ESCALATION_EMAIL_FROM: process.env.ESCALATION_EMAIL_FROM,
+    ESCALATION_EMAIL_TO: process.env.ESCALATION_EMAIL_TO,
     CORS_ORIGINS: process.env.CORS_ORIGINS,
   };
 }

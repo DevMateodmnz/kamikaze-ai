@@ -45,6 +45,15 @@ export interface Env {
   COMPANY_SHIPPING_POLICY: string;
   COMPANY_WARRANTY_POLICY: string;
 
+  // Human Escalation (Email / SMTP)
+  SMTP_HOST: string;
+  SMTP_PORT: number;
+  SMTP_SECURE: boolean;
+  SMTP_USER: string;
+  SMTP_PASS: string;
+  ESCALATION_EMAIL_FROM: string;
+  ESCALATION_EMAIL_TO: string;
+
   // CORS
   CORS_ORIGINS?: string;
 }
