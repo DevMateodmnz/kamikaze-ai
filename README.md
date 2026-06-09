@@ -43,6 +43,7 @@ curl http://localhost:3000/health/ready
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Business Profile Setup](docs/deployment/business-profile.md) — configure for another company
 - [Knowledge Base & Verified Data](docs/knowledge-base.md)
 - [Manual Test Fixtures](docs/manual-tests/conversation-flow-fixtures.md)
 - [AI Gateway Design](docs/ai-gateway.md)
