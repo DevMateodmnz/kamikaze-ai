@@ -44,10 +44,6 @@ const envSchema = z.object({
   COMPANY_NAME: z.string().default('Mi Empresa'),
   COMPANY_BUSINESS_TYPE: z.string().default('comercio'),
 
-  // Escalation
-  DISCORD_WEBHOOK_URL: z.string().url().optional(),
-  ESCALATION_CHANNEL_ID: z.string().optional(),
-
   // CORS
   CORS_ORIGINS: z.string().optional(),
 });
@@ -106,8 +102,6 @@ function buildRawEnv() {
     AI_REPLIES_ENABLED: process.env.AI_REPLIES_ENABLED,
     COMPANY_NAME: process.env.COMPANY_NAME,
     COMPANY_BUSINESS_TYPE: process.env.COMPANY_BUSINESS_TYPE,
-    DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
-    ESCALATION_CHANNEL_ID: process.env.ESCALATION_CHANNEL_ID,
     CORS_ORIGINS: process.env.CORS_ORIGINS,
   };
 }

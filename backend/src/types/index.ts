@@ -38,10 +38,6 @@ export interface Env {
   COMPANY_NAME: string;
   COMPANY_BUSINESS_TYPE: string;
 
-  // Escalation
-  DISCORD_WEBHOOK_URL: string;
-  ESCALATION_CHANNEL_ID: string;
-
   // CORS
   CORS_ORIGINS?: string;
 }

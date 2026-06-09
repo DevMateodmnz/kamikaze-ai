@@ -1,18 +1,16 @@
 /**
  * Messages Module
  *
- * Handles message storage and retrieval.
+ * Handles message storage, retrieval, and processing pipeline.
  *
  * Responsibilities:
  * - Store inbound/outbound messages
  * - Message idempotency (via whatsappMessageId)
  * - Message history retrieval
- *
- * NOT IMPLEMENTED - This is a scaffold for Phase 1
- *
- * Future endpoints:
- * - POST /api/v1/messages/inbound - Store incoming message
- * - GET /api/v1/conversations/:id/messages - Get conversation history
+ * - Intent classification (AI + deterministic fallback)
+ * - Reply generation (template / KB / AI)
+ * - Outbound WhatsApp delivery
+ * - Message processing trace for auditability
  */
 
 export { messagesService } from './service.js';
