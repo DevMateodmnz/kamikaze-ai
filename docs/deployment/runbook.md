@@ -176,7 +176,7 @@ curl -s -X POST http://localhost:3000/api/v1/messages/process \
 Expected:
 - `processing.intent` = `greeting`
 - `processing.action` = `reply`
-- `processing.replySource` = `template`
+- `processing.trace.replySource` = `template`
 - Reply contains your `COMPANY_NAME`
 - `processing.trace.outboundDelivery.sent` = `true`
 - `processing.trace.outboundDelivery.reason` = `dry_run`
@@ -192,7 +192,7 @@ curl -s -X POST http://localhost:3000/api/v1/messages/process \
 Expected:
 - `processing.intent` = `product_interest` (if using legacy detector) or matches KB
 - Reply includes your `COMPANY_PRODUCT_CATEGORIES`
-- `replySource` = `knowledge_base` if a matching KB entry exists and is verified
+- `processing.trace.replySource` = `knowledge_base` if a matching KB entry exists and is verified
 
 ### 5.3 Complaint (triggers escalation)
 
