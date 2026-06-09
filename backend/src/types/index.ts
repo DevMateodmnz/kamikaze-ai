@@ -13,6 +13,8 @@ export interface Env {
 
   // WhatsApp
   WHATSAPP_ENABLED: boolean;
+  WHATSAPP_OUTBOUND_ENABLED: boolean;
+  WHATSAPP_OUTBOUND_MODE: 'live' | 'dry_run';
   WHATSAPP_PHONE_NUMBER_ID: string;
   WHATSAPP_ACCESS_TOKEN: string;
   WHATSAPP_APP_SECRET: string;
@@ -23,6 +25,7 @@ export interface Env {
   // AI Gateway
   AI_PROVIDER: string;
   AI_FALLBACK_PROVIDER: string;
+  AI_CLASSIFICATION_ENABLED: boolean;
   AI_MIN_CONFIDENCE_THRESHOLD: number;
   AI_TIMEOUT_MS: number;
   AI_MAX_TOKENS_REPLY: number;

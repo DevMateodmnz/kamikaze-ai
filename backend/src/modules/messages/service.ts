@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '../../config/database.js';
+import { validateEnv } from '../../config/env.js';
 import type { StoredMessage, MessageProcessingTrace } from './types.js';
 import { customersService } from '../customers/service.js';
 import { conversationsService } from '../conversations/service.js';
@@ -310,7 +311,7 @@ export async function processInboundMessage(
   const decision = makeDecision(detection.intent, detection.confidence);
 
   // Trace metadata — collected during processing
-  const aiReplyEnabled = process.env['AI_REPLIES_ENABLED'] === 'true';
+  const aiReplyEnabled = validateEnv().AI_REPLIES_ENABLED;
   const intentSource = detection.intentSource ?? 'deterministic';
   const aiIntentUsed = intentSource === 'ai';
   let aiReplyUsed = false;
@@ -457,10 +458,7 @@ function mapAiIntentToDeterministic(aiIntent: AiIntent): Intent | null {
  * Read the confidence threshold from env, with safe default.
  */
 function getConfidenceThreshold(): number {
-  const raw = process.env['AI_MIN_CONFIDENCE_THRESHOLD'];
-  if (!raw) return 0.6;
-  const parsed = parseFloat(raw);
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.6;
+  return validateEnv().AI_MIN_CONFIDENCE_THRESHOLD;
 }
 
 /**
@@ -483,7 +481,7 @@ export async function classifyIntentWithFallback(
   const deterministicResult = detectIntent(text);
 
   // Explicit disable: skip AI entirely, return deterministic
-  if (process.env['AI_CLASSIFICATION_ENABLED'] === 'false') {
+  if (!validateEnv().AI_CLASSIFICATION_ENABLED) {
     return {
       ...deterministicResult,
       intentSource: 'deterministic',
@@ -545,7 +543,7 @@ export async function generateReplyWithFallback(input: {
   intent: Intent;
 }): Promise<{ replyText: string; aiProvider: string } | null> {
   // Feature flag gate
-  if (process.env['AI_REPLIES_ENABLED'] !== 'true') return null;
+  if (!validateEnv().AI_REPLIES_ENABLED) return null;
 
   // Only safe intents get AI replies
   if (!AI_REPLY_SAFE_INTENTS.has(input.intent)) return null;

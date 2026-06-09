@@ -18,6 +18,9 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { request } from 'http';
+import { validateEnv } from '../config/env.js';
+
+const e = validateEnv();
 
 // ---------------------------------------------------------------------------
 // Config
@@ -183,7 +186,7 @@ function formatInspection(raw: unknown, scenario: string): InspectionResult {
 async function main() {
   console.log('=== Real-Service Fixture Inspection ===\n');
 
-  if (process.env['AI_CLASSIFICATION_ENABLED'] !== 'false') {
+  if (e.AI_CLASSIFICATION_ENABLED) {
     console.error('ERROR: AI_CLASSIFICATION_ENABLED must be set to "false".');
     console.error('This prevents external AI provider calls during fixture inspection.');
     console.error('\nRun with:');
@@ -318,7 +321,7 @@ async function main() {
   console.log(`Errors:         ${errors}`);
   console.log(`AI replies:     0 (AI_REPLIES_ENABLED=false by default)`);
   console.log(`\nBackend: ${BASE_URL}`);
-  console.log(`AI_CLASSIFICATION_ENABLED: ${process.env['AI_CLASSIFICATION_ENABLED'] ?? 'unset'}`);
+  console.log(`AI_CLASSIFICATION_ENABLED: ${e.AI_CLASSIFICATION_ENABLED}`);
 }
 
 main().catch((err) => {

@@ -11,6 +11,8 @@
  * Never logs access tokens or phone numbers.
  */
 
+import { validateEnv } from '../../config/env.js';
+
 /** Result of an outbound delivery attempt. */
 export interface WhatsAppDeliveryResult {
   /** Whether the message was successfully sent. */
@@ -39,12 +41,12 @@ export async function attemptWhatsAppDelivery(
   to: string
 ): Promise<WhatsAppDeliveryResult> {
   // Feature flag gate
-  if (process.env.WHATSAPP_OUTBOUND_ENABLED !== 'true') {
+  if (!validateEnv().WHATSAPP_OUTBOUND_ENABLED) {
     return { sent: false, reason: 'disabled' };
   }
 
   // Dry-run mode: credential-free simulated delivery (no Meta API call)
-  if (process.env.WHATSAPP_OUTBOUND_MODE === 'dry_run') {
+  if (validateEnv().WHATSAPP_OUTBOUND_MODE === 'dry_run') {
     return {
       sent: true,
       reason: 'dry_run',
@@ -52,9 +54,10 @@ export async function attemptWhatsAppDelivery(
     };
   }
 
-  const accessToken = process.env['WHATSAPP_ACCESS_TOKEN'];
-  const phoneNumberId = process.env['WHATSAPP_PHONE_NUMBER_ID'];
-  const apiVersion = process.env['WHATSAPP_API_VERSION'] ?? 'v21.0';
+  const e = validateEnv();
+  const accessToken = e.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = e.WHATSAPP_PHONE_NUMBER_ID;
+  const apiVersion = e.WHATSAPP_API_VERSION;
 
   if (!accessToken || !phoneNumberId) {
     return { sent: false, reason: 'config_missing' };

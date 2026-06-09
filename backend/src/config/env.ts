@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import type { Env } from '../types/index.js';
 
+// Environment boolean: only 'true' or true → true; 'false', '', absent → false
+const envBoolean = z.preprocess(
+  (val) => val === 'true' || val === true,
+  z.boolean().default(false)
+);
+
 // Schema validation for environment variables
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -12,7 +18,9 @@ const envSchema = z.object({
   INTERNAL_API_KEY: z.string().min(20).default('dev-internal-api-key-change-in-production'),
 
   // WhatsApp (disabled by default)
-  WHATSAPP_ENABLED: z.coerce.boolean().default(false),
+  WHATSAPP_ENABLED: envBoolean.default(false),
+  WHATSAPP_OUTBOUND_ENABLED: envBoolean.default(false),
+  WHATSAPP_OUTBOUND_MODE: z.enum(['live', 'dry_run']).default('live'),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),
@@ -23,13 +31,14 @@ const envSchema = z.object({
   // AI Gateway
   AI_PROVIDER: z.enum(['minimax', 'openai', 'gemini', 'anthropic', 'local']).default('minimax'),
   AI_FALLBACK_PROVIDER: z.enum(['minimax', 'openai', 'gemini', 'anthropic', 'local', '']).optional().default(''),
+  AI_CLASSIFICATION_ENABLED: envBoolean.default(true),
   AI_MIN_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.6),
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).default(20000),
   AI_MAX_TOKENS_REPLY: z.coerce.number().int().min(50).max(4000).default(400),
   AI_MAX_TOKENS_INTENT: z.coerce.number().int().min(10).max(500).default(100),
 
   // AI-generated replies (disabled by default — enable only after safety review)
-  AI_REPLIES_ENABLED: z.coerce.boolean().default(false),
+  AI_REPLIES_ENABLED: envBoolean.default(false),
 
   // Company identity (generic — override per deployment)
   COMPANY_NAME: z.string().default('Mi Empresa'),
@@ -46,15 +55,41 @@ const envSchema = z.object({
 let cachedEnv: Env | null = null;
 
 export function validateEnv(): Env {
+  // Never cache in test mode — allows vi.stubEnv() to work in unit tests
+  if (process.env.NODE_ENV === 'test') {
+    const rawEnv = buildRawEnv();
+    const result = envSchema.safeParse(rawEnv);
+    if (!result.success) {
+      const errors = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
+      throw new Error(`Invalid environment variables: ${errors}`);
+    }
+    return result.data as Env;
+  }
+
   if (cachedEnv) return cachedEnv;
 
-  const rawEnv = {
+  const rawEnv = buildRawEnv();
+  const result = envSchema.safeParse(rawEnv);
+
+  if (!result.success) {
+    const errors = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
+    throw new Error(`Invalid environment variables: ${errors}`);
+  }
+
+  cachedEnv = result.data as Env;
+  return cachedEnv;
+}
+
+function buildRawEnv() {
+  return {
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
     LOG_LEVEL: process.env.LOG_LEVEL,
     DATABASE_URL: process.env.DATABASE_URL,
     INTERNAL_API_KEY: process.env.INTERNAL_API_KEY,
     WHATSAPP_ENABLED: process.env.WHATSAPP_ENABLED,
+    WHATSAPP_OUTBOUND_ENABLED: process.env.WHATSAPP_OUTBOUND_ENABLED,
+    WHATSAPP_OUTBOUND_MODE: process.env.WHATSAPP_OUTBOUND_MODE,
     WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
     WHATSAPP_ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
     WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET,
@@ -63,6 +98,7 @@ export function validateEnv(): Env {
     WHATSAPP_WEBHOOK_PATH: process.env.WHATSAPP_WEBHOOK_PATH,
     AI_PROVIDER: process.env.AI_PROVIDER,
     AI_FALLBACK_PROVIDER: process.env.AI_FALLBACK_PROVIDER,
+    AI_CLASSIFICATION_ENABLED: process.env.AI_CLASSIFICATION_ENABLED,
     AI_MIN_CONFIDENCE_THRESHOLD: process.env.AI_MIN_CONFIDENCE_THRESHOLD,
     AI_TIMEOUT_MS: process.env.AI_TIMEOUT_MS,
     AI_MAX_TOKENS_REPLY: process.env.AI_MAX_TOKENS_REPLY,
@@ -74,16 +110,6 @@ export function validateEnv(): Env {
     ESCALATION_CHANNEL_ID: process.env.ESCALATION_CHANNEL_ID,
     CORS_ORIGINS: process.env.CORS_ORIGINS,
   };
-
-  const result = envSchema.safeParse(rawEnv);
-
-  if (!result.success) {
-    const errors = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
-    throw new Error(`Invalid environment variables: ${errors}`);
-  }
-
-  cachedEnv = result.data as Env;
-  return cachedEnv;
 }
 
 export const env = validateEnv();
