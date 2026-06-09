@@ -1,8 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import { createTransport } from 'nodemailer';
+import { verifyApiKey } from '../../modules/security/service.js';
 
 export const internalRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
+  // Auth gate: all internal endpoints require X-API-Key header
+  app.addHook('preHandler', verifyApiKey);
+
   app.post('/send-email', {
     config: { internal: true },
   }, async (request, reply) => {
