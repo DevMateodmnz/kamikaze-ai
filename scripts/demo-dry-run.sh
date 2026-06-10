@@ -178,7 +178,7 @@ send_message "Demo 1: Greeting" \
 # Demo 2: Product / service interest
 send_message "Demo 2: Product Interest" \
   "+15550000002" \
-  "¿Qué productos tienen?"
+  "¿Tienen notebooks disponibles?"
 
 # Demo 3: Store hours question
 send_message "Demo 3: Store Hours" \
@@ -198,7 +198,7 @@ send_message "Demo 5: Payment Methods" \
 # Demo 6: Complaint → Escalation
 send_message "Demo 6: Complaint → Escalation" \
   "+15550000006" \
-  "Estoy muy disconforme con el servicio"
+  "Tengo una queja, el producto llegó mal"
 
 # Demo 7: Human request → Escalation
 send_message "Demo 7: Human Request" \
