@@ -12,6 +12,7 @@ process.env.AI_MIN_CONFIDENCE_THRESHOLD = '0.6';
 process.env.AI_TIMEOUT_MS = '20000';
 process.env.AI_MAX_TOKENS_REPLY = '400';
 process.env.AI_MAX_TOKENS_INTENT = '100';
+process.env.AI_CLASSIFICATION_ENABLED = 'true';
 process.env.AI_REPLIES_ENABLED = 'false';
 process.env.COMPANY_NAME = 'Test Company';
 process.env.COMPANY_BUSINESS_TYPE = 'comercio';
