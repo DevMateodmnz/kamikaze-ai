@@ -38,11 +38,20 @@
    npm run seed:kb
    ```
 
-4. **`.env` file** with at minimum:
+4. **`.env` file** — copy the demo-ready example:
    ```bash
-   cp .env.example .env
-   # Fill in DATABASE_URL, INTERNAL_API_KEY, and SMTP vars
+   cd backend
+   cp .env.demo.example .env
+   # Edit DATABASE_URL if your PostgreSQL credentials differ
    ```
+
+   The demo env file pre-configures:
+   - `WHATSAPP_OUTBOUND_MODE=dry_run` (no Meta API)
+   - `AI_CLASSIFICATION_ENABLED=false` (deterministic intents, no AI cost)
+   - `AI_REPLIES_ENABLED=false` (predictable template replies)
+   - Dummy SMTP values (required at startup, no real email sent)
+
+   See `.env.demo.example` for all values and their comments.
 
 ---
 
@@ -54,7 +63,9 @@
 cd backend && npm run demo
 ```
 
-This starts the backend with dry-run WhatsApp mode enabled.
+This starts the backend with dry-run WhatsApp mode enabled. The `demo` npm script sets `WHATSAPP_OUTBOUND_ENABLED=true` and `WHATSAPP_OUTBOUND_MODE=dry_run` automatically.
+
+> **Tip**: Copy `.env.demo.example` → `.env` first for a fully pre-configured demo environment with safe dummy values.
 
 ### Manual start (for custom configuration)
 
@@ -82,7 +93,12 @@ Run all demo scenarios at once:
 ./scripts/demo-dry-run.sh
 ```
 
-This sends 7 sample messages covering greetings, product interest, store info, payment methods, complaints, and human requests — and displays the intent, action, reply source, escalation status, and dry-run outbound trace for each one.
+The script runs preflight checks before sending messages:
+- Verifies `curl` is installed
+- Detects `jq` (preferred) or `python3` (fallback) for JSON parsing
+- Checks the backend is reachable — if not, prints the exact `cd backend && npm run demo` command to start it
+
+It sends 7 sample messages covering greetings, product interest, store info, payment methods, complaints, and human requests — and displays the intent, action, reply source, escalation status, and dry-run outbound trace for each one.
 
 ---
 
@@ -249,6 +265,16 @@ Present these 5–7 points while walking through the demo:
 ---
 
 ## Troubleshooting
+
+### Demo script says "Backend not reachable"
+
+The preflight check failed. The script prints the exact command you need:
+```
+cd backend
+cp .env.demo.example .env   # if you haven't already
+npm run demo
+```
+Start the backend in another terminal, wait for `Server listening on port 3000`, then re-run `./scripts/demo-dry-run.sh`.
 
 ### Backend won't start — SMTP validation error
 
