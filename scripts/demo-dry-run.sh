@@ -97,7 +97,7 @@ json_field() {
   local default="$3"
 
   if [ "$JSON_PARSER" = "jq" ]; then
-    echo "$response" | jq -r ".${path} // \"$default\"" 2>/dev/null || echo "$default"
+    echo "$response" | jq -r "if .${path} != null then .${path} else \"$default\" end" 2>/dev/null || echo "$default"
   else
     echo "$response" | python3 -c "
 import sys, json
