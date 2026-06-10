@@ -359,8 +359,9 @@ describe('inspectMessageProcessing', () => {
     result.processing!.trace = makeTrace({
       outboundDelivery: {
         attempted: true,
-        sent: true,
+        sent: false,
         reason: 'dry_run',
+        mode: 'dry_run',
         waMessageId: 'dryrun_1712345678000',
       },
     });
@@ -369,8 +370,9 @@ describe('inspectMessageProcessing', () => {
 
     expect(inspection.outboundDelivery).toBeDefined();
     expect(inspection.outboundDelivery!.attempted).toBe(true);
-    expect(inspection.outboundDelivery!.sent).toBe(true);
+    expect(inspection.outboundDelivery!.sent).toBe(false);
     expect(inspection.outboundDelivery!.reason).toBe('dry_run');
+    expect(inspection.outboundDelivery!.mode).toBe('dry_run');
     expect(inspection.outboundDelivery!.waMessageId).toBe('dryrun_1712345678000');
     const dryNote = inspection.notes.find((n) =>
       n.toLowerCase().includes('dry-run delivery simulated')

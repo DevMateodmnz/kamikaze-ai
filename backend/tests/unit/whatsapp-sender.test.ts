@@ -64,16 +64,18 @@ describe('attemptWhatsAppDelivery', () => {
 
   // ── Dry-run mode ─────────────────────────────────────────────────
 
-  it('returns { sent: true, reason: "dry_run" } when WHATSAPP_OUTBOUND_MODE=dry_run', async () => {
+  it('returns { sent: false, reason: "dry_run", mode: "dry_run" } when WHATSAPP_OUTBOUND_MODE=dry_run', async () => {
     vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
     vi.stubEnv('WHATSAPP_OUTBOUND_MODE', 'dry_run');
 
     const result = await attemptWhatsAppDelivery('Hola', '+5490000000000');
 
-    expect(result.sent).toBe(true);
+    expect(result.sent).toBe(false);
     expect(result.reason).toBe('dry_run');
+    expect(result.mode).toBe('dry_run');
     expect(result.waMessageId).toBeDefined();
     expect(result.waMessageId).toMatch(/^dryrun_/);
+    expect(result.wouldSend).toEqual({ to: '+5490000000000', text: 'Hola' });
   });
 
   it('dry_run mode does NOT call Meta API (no fetch)', async () => {
@@ -85,9 +87,11 @@ describe('attemptWhatsAppDelivery', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    await attemptWhatsAppDelivery('Hola', '+5490000000000');
+    const result = await attemptWhatsAppDelivery('Hola', '+5490000000000');
 
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.mode).toBe('dry_run');
+    expect(result.wouldSend).toBeDefined();
   });
 
   it('dry_run returns unique waMessageId per call', async () => {
@@ -100,6 +104,9 @@ describe('attemptWhatsAppDelivery', () => {
     const r2 = await attemptWhatsAppDelivery('Hola', '+5490000000000');
 
     expect(r1.waMessageId).not.toBe(r2.waMessageId);
+    expect(r1.mode).toBe('dry_run');
+    expect(r1.wouldSend).toBeDefined();
+    expect(r2.mode).toBe('dry_run');
   });
 
   it('dry_run still respects WHATSAPP_OUTBOUND_ENABLED=false → disabled', async () => {
@@ -123,6 +130,7 @@ describe('attemptWhatsAppDelivery', () => {
 
     expect(json).not.toContain('secret-token-xyz');
     expect(json).not.toContain('Bearer');
+    expect(result.wouldSend).toBeDefined();
   });
 
   // ── Successful delivery (mocked) ──────────────────────────────────
@@ -165,6 +173,26 @@ describe('attemptWhatsAppDelivery', () => {
     expect(body.to).toBe('+5490000000000');
     expect(body.type).toBe('text');
     expect(body.text.body).toBe('Hola, ¿cómo estás?');
+  });
+
+  it('live mode returns mode: "live" on success', async () => {
+    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
+    vi.stubEnv('WHATSAPP_OUTBOUND_MODE', 'live');
+    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'test-token-abc');
+    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '123456789');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        messages: [{ id: 'wamid.test123' }],
+      }),
+    }));
+
+    const result = await attemptWhatsAppDelivery('Hola', '+5490000000000');
+
+    expect(result.sent).toBe(true);
+    expect(result.reason).toBe('delivered');
+    expect(result.mode).toBe('live');
   });
 
   // ── Delivery failure ──────────────────────────────────────────────

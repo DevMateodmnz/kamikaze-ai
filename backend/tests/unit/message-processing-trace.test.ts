@@ -772,7 +772,7 @@ describe('processInboundMessage — trace integration tests', () => {
     vi.unstubAllEnvs();
   });
 
-  it('dry_run mode: trace shows reason=dry_run, attempted=true, sent=true', async () => {
+  it('dry_run mode: trace shows reason=dry_run, attempted=true, sent=false', async () => {
     if (!dbAvailable) return;
     vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
     vi.stubEnv('WHATSAPP_OUTBOUND_MODE', 'dry_run');
@@ -780,9 +780,11 @@ describe('processInboundMessage — trace integration tests', () => {
 
     // Mock sender to return dry_run result
     mockWhatsAppSender.attemptWhatsAppDelivery.mockResolvedValueOnce({
-      sent: true,
+      sent: false,
       reason: 'dry_run',
+      mode: 'dry_run',
       waMessageId: 'dryrun_1712345678000',
+      wouldSend: { to: '+5493812370', text: 'mock text' },
     });
 
     mockedRouter.classifyIntent.mockResolvedValueOnce({
@@ -810,9 +812,11 @@ describe('processInboundMessage — trace integration tests', () => {
     const trace = result.processing!.trace!;
     expect(trace.outboundDelivery).toBeDefined();
     expect(trace.outboundDelivery!.attempted).toBe(true);
-    expect(trace.outboundDelivery!.sent).toBe(true);
+    expect(trace.outboundDelivery!.sent).toBe(false);
     expect(trace.outboundDelivery!.reason).toBe('dry_run');
+    expect(trace.outboundDelivery!.mode).toBe('dry_run');
     expect(trace.outboundDelivery!.waMessageId).toBe('dryrun_1712345678000');
+    expect(trace.outboundDelivery!.wouldSend).toBeDefined();
 
     vi.unstubAllEnvs();
   });
@@ -835,7 +839,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    await processInboundMessage({
+    const result = await processInboundMessage({
       from: `+5493812368${testTimestamp}`,
       text: 'Estoy enojado con el servicio',
     });

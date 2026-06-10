@@ -6,6 +6,8 @@
  *
  * Supports a credential-free dry-run mode for local demos and testing.
  * Set WHATSAPP_OUTBOUND_MODE=dry_run to simulate delivery without Meta API.
+ * In dry_run mode, sent is false (nothing was actually delivered) and
+ * wouldSend provides a safe preview of what would have been sent.
  *
  * Never throws — always returns a result object.
  * Never logs access tokens or phone numbers.
@@ -19,8 +21,12 @@ export interface WhatsAppDeliveryResult {
   sent: boolean;
   /** Reason for the result (for trace/debug). */
   reason: 'disabled' | 'config_missing' | 'delivered' | 'delivery_failed' | 'dry_run';
+  /** Delivery mode: 'live' for real WhatsApp API, 'dry_run' for simulated. */
+  mode?: 'live' | 'dry_run';
   /** Message ID from WhatsApp on success, or a deterministic dry-run ID. */
   waMessageId?: string;
+  /** Safe preview of what would have been sent (dry_run mode only). */
+  wouldSend?: { to: string; text: string };
 }
 
 /**
@@ -29,7 +35,8 @@ export interface WhatsAppDeliveryResult {
  * Delivery mode (WHATSAPP_OUTBOUND_MODE):
  *   - live (default): real WhatsApp Cloud API delivery — requires credentials.
  *   - dry_run: simulated delivery — no Meta API call, no credentials needed.
- *     Returns { sent: true, reason: 'dry_run', waMessageId: 'dryrun_<ts>' }.
+ *     Returns { sent: false, reason: 'dry_run', mode: 'dry_run',
+ *              waMessageId: 'dryrun_<ts>', wouldSend: { to, text } }.
  *
  * Safe by default: does nothing unless WHATSAPP_OUTBOUND_ENABLED is 'true'.
  *
@@ -48,9 +55,11 @@ export async function attemptWhatsAppDelivery(
   // Dry-run mode: credential-free simulated delivery (no Meta API call)
   if (validateEnv().WHATSAPP_OUTBOUND_MODE === 'dry_run') {
     return {
-      sent: true,
+      sent: false,
       reason: 'dry_run',
+      mode: 'dry_run',
       waMessageId: `dryrun_${Date.now()}`,
+      wouldSend: { to, text: content },
     };
   }
 
@@ -85,7 +94,7 @@ export async function attemptWhatsAppDelivery(
     });
 
     if (!response.ok) {
-      return { sent: false, reason: 'delivery_failed' };
+      return { sent: false, reason: 'delivery_failed', mode: 'live' };
     }
 
     const json = await response.json() as {
@@ -96,9 +105,10 @@ export async function attemptWhatsAppDelivery(
     return {
       sent: true,
       reason: 'delivered',
+      mode: 'live',
       waMessageId,
     };
   } catch {
-    return { sent: false, reason: 'delivery_failed' };
+    return { sent: false, reason: 'delivery_failed', mode: 'live' };
   }
 }

@@ -73,6 +73,10 @@ export interface OutboundDeliveryTrace {
   sent: boolean;
   /** Reason for the delivery result. */
   reason: 'disabled' | 'config_missing' | 'delivered' | 'delivery_failed' | 'dry_run';
+  /** Delivery mode. */
+  mode?: 'live' | 'dry_run';
   /** WhatsApp message ID from Meta on success. */
   waMessageId?: string;
+  /** What would have been sent (dry_run mode only). */
+  wouldSend?: { to: string; text: string };
 }

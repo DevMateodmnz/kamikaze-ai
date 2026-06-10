@@ -386,7 +386,9 @@ export async function processInboundMessage(
       attempted: deliveryResult.reason !== 'disabled' && deliveryResult.reason !== 'config_missing',
       sent: deliveryResult.sent,
       reason: deliveryResult.reason,
+      ...(deliveryResult.mode && { mode: deliveryResult.mode }),
       ...(deliveryResult.waMessageId && { waMessageId: deliveryResult.waMessageId }),
+      ...(deliveryResult.wouldSend && { wouldSend: deliveryResult.wouldSend }),
     };
   }
 

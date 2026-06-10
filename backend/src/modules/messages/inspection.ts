@@ -46,7 +46,9 @@ export interface InspectionResult {
     attempted: boolean;
     sent: boolean;
     reason: string;
+    mode?: string;
     waMessageId?: string;
+    wouldSend?: { to: string; text: string };
   };
   /** Human-readable contextual notes about the processing decision. */
   notes: string[];
