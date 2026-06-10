@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "demo": "WHATSAPP_OUTBOUND_ENABLED=true WHATSAPP_OUTBOUND_MODE=dry_run tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",

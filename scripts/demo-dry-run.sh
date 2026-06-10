@@ -92,37 +92,48 @@ send_message() {
 # ── Main ─────────────────────────────────────────────────────
 
 echo "============================================"
-echo " Kamikaze AI — Dry-Run MVP Demo"
+echo " Kamikaze AI — Company MVP Demo (Dry-Run)"
 echo " Backend: $BACKEND"
+echo " Demo mode: WhatsApp dry_run (no Meta API)"
 echo "============================================"
 
 check_backend
 echo -e "${GREEN}✓ Backend is reachable${NC}"
 
-# Demo 1: Greeting
+# Demo 1: Greeting (template reply)
 send_message "Demo 1: Greeting" \
-  "+5493811111111" \
+  "+15550000001" \
   "Hola, buenos días"
 
-# Demo 2: Product interest (Acme categories or legacy bike)
+# Demo 2: Product / service interest
 send_message "Demo 2: Product Interest" \
-  "+5493812222222" \
-  "Hola, quiero una notebook para trabajar"
+  "+15550000002" \
+  "¿Qué productos tienen?"
 
-# Demo 3: Complaint → Escalation
-send_message "Demo 3: Complaint → Escalation" \
-  "+5493813333333" \
-  "Estoy muy enojado, esto es una porquería"
+# Demo 3: Store hours question
+send_message "Demo 3: Store Hours" \
+  "+15550000003" \
+  "¿Cuáles son los horarios?"
 
-# Demo 4: Store info question
-send_message "Demo 4: Store Hours" \
-  "+5493814444444" \
-  "A qué hora abren?"
+# Demo 4: Store location question
+send_message "Demo 4: Store Location" \
+  "+15550000004" \
+  "¿Dónde están ubicados?"
 
-# Demo 5: Unknown / safe fallback
-send_message "Demo 5: Unknown question" \
-  "+5493815555555" \
-  "asdfghjkl nada que ver"
+# Demo 5: Payment methods question
+send_message "Demo 5: Payment Methods" \
+  "+15550000005" \
+  "¿Qué medios de pago aceptan?"
+
+# Demo 6: Complaint → Escalation
+send_message "Demo 6: Complaint → Escalation" \
+  "+15550000006" \
+  "Estoy muy disconforme con el servicio"
+
+# Demo 7: Human request → Escalation
+send_message "Demo 7: Human Request" \
+  "+15550000007" \
+  "Quiero hablar con una persona por favor"
 
 # ── Show active escalations ──────────────────────────────────
 

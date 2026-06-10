@@ -45,7 +45,8 @@ curl http://localhost:3000/health/ready
 - [Architecture](docs/architecture.md)
 - [Business Profile Setup](docs/deployment/business-profile.md) — configure for another company
 - [Deployment Runbook](docs/deployment/runbook.md) — step-by-step setup and demo guide
-- [WhatsApp Dry-Run Demo](docs/manual-tests/whatsapp-dry-run-demo.md) — demo without Meta credentials
+- [MVP Company Demo](docs/manual-tests/mvp-company-demo.md) — 5-minute demo runbook for presenting to a business
+- [WhatsApp Dry-Run Demo](docs/manual-tests/whatsapp-dry-run-demo.md) — technical dry-run walkthrough
 - [Knowledge Base & Verified Data](docs/knowledge-base.md)
 - [Manual Test Fixtures](docs/manual-tests/conversation-flow-fixtures.md)
 - [AI Gateway Design](docs/ai-gateway.md)
