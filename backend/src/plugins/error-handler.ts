@@ -46,6 +46,18 @@ export const errorHandler: ErrorHandler = (error, _request, reply) => {
     return;
   }
 
+  // PrismaClientInitializationError (P1000, P1001, P1003, etc.) —
+  // the client cannot reach the database (bad credentials, host down, etc.).
+  // Return 503 so callers can distinguish infrastructure failures from app bugs.
+  if (error.name === 'PrismaClientInitializationError') {
+    void reply.status(503).send({
+      error: true,
+      code: 'DATABASE_UNAVAILABLE',
+      message: 'Database connection failed. Check DATABASE_URL, credentials, and that PostgreSQL is running.',
+    });
+    return;
+  }
+
   // Generic error for unknown cases
   const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
   void reply.status(statusCode).send({

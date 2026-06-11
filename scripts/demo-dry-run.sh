@@ -87,6 +87,36 @@ check_backend() {
     echo ""
     exit 1
   fi
+
+  # Check database readiness — /health confirms the process is alive,
+  # /health/ready confirms the database connection works.
+  local ready_code ready_body db_status
+  ready_body=$(curl -s "$BACKEND/health/ready" 2>/dev/null || echo "{}")
+  ready_code=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND/health/ready" 2>/dev/null || echo "000")
+  db_status="unknown"
+  if command -v jq &>/dev/null; then
+    db_status=$(echo "$ready_body" | jq -r '.checks.database // "unknown"' 2>/dev/null || echo "unknown")
+  fi
+
+  if [ "$ready_code" != "200" ] || [ "$db_status" != "ok" ]; then
+    echo ""
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}  Database not ready (health/ready returned $ready_code, db=$db_status)${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo "  The backend is running but cannot reach PostgreSQL."
+    echo "  Common causes:"
+    echo "  1. Docker PostgreSQL not started:"
+    echo -e "       ${GREEN}docker compose up -d postgres${NC}"
+    echo "  2. DATABASE_URL credentials don't match docker-compose:"
+    echo -e "       ${GREEN}cd backend${NC}"
+    echo -e "       ${GREEN}cp .env.demo.example .env${NC}"
+    echo "     The demo env file now uses the same defaults as docker-compose."
+    echo "  3. DATABASE_URL points to wrong host/port."
+    echo "     Expected: ${CYAN}postgresql://kamikaze:kamikaze_dev_password@localhost:5432/kamikaze_db${NC}"
+    echo ""
+    exit 1
+  fi
 }
 
 # ── JSON field extraction (jq or python3) ────────────────────
@@ -135,16 +165,12 @@ send_message() {
 
   # Extract key fields using available JSON parser
   local intent action reply_source escalation_id escalation_reason
-  local od_attempted od_sent od_reason
 
   intent=$(json_field "$response" "processing.intent" "?")
   action=$(json_field "$response" "processing.action" "?")
   reply_source=$(json_field "$response" "processing.trace.replySource" "-")
   escalation_id=$(json_field "$response" "processing.escalationId" "-")
   escalation_reason=$(json_field "$response" "processing.escalationReason" "-")
-  od_attempted=$(json_field "$response" "processing.trace.outboundDelivery.attempted" "?")
-  od_sent=$(json_field "$response" "processing.trace.outboundDelivery.sent" "?")
-  od_reason=$(json_field "$response" "processing.trace.outboundDelivery.reason" "?")
 
   echo -e "  intent:        ${GREEN}${intent}${NC}"
   echo -e "  action:        ${YELLOW}${action}${NC}"
@@ -153,7 +179,32 @@ send_message() {
   if [ "$escalation_reason" != "-" ] && [ "$escalation_reason" != "null" ]; then
     echo -e "  escalation:    ${RED}${escalation_reason}${NC}"
   fi
-  echo -e "  outbound:      attempted=${od_attempted} sent=${od_sent} reason=${od_reason}"
+
+  # Outbound display depends on action.
+  # reply  → WhatsApp delivery was attempted (or simulated in dry_run).
+  # escalate → no WhatsApp reply is sent; escalation record created instead.
+  if [ "$action" = "reply" ]; then
+    local od_attempted od_sent od_reason
+    od_attempted=$(json_field "$response" "processing.trace.outboundDelivery.attempted" "?")
+    od_sent=$(json_field "$response" "processing.trace.outboundDelivery.sent" "?")
+    od_reason=$(json_field "$response" "processing.trace.outboundDelivery.reason" "?")
+
+    if [ "$od_attempted" = "?" ] || [ "$od_sent" = "?" ] || [ "$od_reason" = "?" ]; then
+      echo -e "${RED}  ERROR: action=reply but outboundDelivery trace is absent.${NC}"
+      echo -e "${RED}  This is a backend bug — reply scenarios must include outboundDelivery.${NC}"
+      echo -e "${RED}  Full response follows:${NC}"
+      echo "$response" | head -c 2000
+      exit 1
+    fi
+    echo -e "  outbound:      attempted=${od_attempted} sent=${od_sent} reason=${od_reason}"
+  elif [ "$action" = "escalate" ]; then
+    echo -e "  outbound:      ${YELLOW}n/a — escalation created, no WhatsApp reply sent${NC}"
+  else
+    echo -e "${RED}  ERROR: unexpected action='${action}'. Expected 'reply' or 'escalate'.${NC}"
+    echo -e "${RED}  Full response follows:${NC}"
+    echo "$response" | head -c 2000
+    exit 1
+  fi
 }
 
 # ── Main ─────────────────────────────────────────────────────
@@ -169,6 +220,7 @@ check_prerequisites
 check_backend
 echo -e "${GREEN}✓ Dependencies found${NC} (curl + $JSON_PARSER)"
 echo -e "${GREEN}✓ Backend is reachable${NC}"
+echo -e "${GREEN}✓ Database is ready${NC}"
 
 # Demo 1: Greeting (template reply)
 send_message "Demo 1: Greeting" \
