@@ -158,6 +158,15 @@ function buildEscalationEmailHtml(escalation: EscalationResponse): string {
     ? `<p><strong>Customer message:</strong><br/><em>${escapeHtml(escalation.customerMessage)}</em></p>`
     : '';
 
+  // Include AI-suggested reply when present (PR-014)
+  const suggestedReplyBlock = escalation.suggestedReply
+    ? `<hr/>
+<p><strong>💬 AI-Suggested Reply (draft — review before sending):</strong></p>
+<blockquote style="background:#f5f5f5;padding:10px;border-left:3px solid #2196F3;">
+${escapeHtml(escalation.suggestedReply)}
+</blockquote>`
+    : '';
+
   return `<!DOCTYPE html>
 <html><body style="font-family: sans-serif; max-width: 600px;">
 <h2>Kamikaze AI — Escalation Alert</h2>
@@ -172,6 +181,7 @@ function buildEscalationEmailHtml(escalation: EscalationResponse): string {
 <tr><td><strong>Summary</strong></td><td>${escapeHtml(escalation.summary || 'n/a')}</td></tr>
 </table>
 ${messageBlock}
+${suggestedReplyBlock}
 <hr/>
 <p style="color: #666; font-size: 0.9em;">This is an automated notification from Kamikaze AI. Reply to the customer directly — do not reply to this email.</p>
 </body></html>`;

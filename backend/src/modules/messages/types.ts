@@ -55,6 +55,8 @@ export interface MessageProcessingTrace {
   aiIntentUsed: boolean;
   /** Whether AI was used for reply generation. */
   aiReplyUsed: boolean;
+  /** Whether AI was used for escalation suggested reply (PR-014). */
+  aiSuggestionUsed?: boolean;
   /** Whether the AI_REPLIES_ENABLED feature flag was active. */
   aiReplyEnabled: boolean;
   /** KB entry ID if a verified knowledge base entry was used. */

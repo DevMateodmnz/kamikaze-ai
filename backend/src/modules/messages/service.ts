@@ -283,6 +283,56 @@ export interface ProcessMessageResult {
  * This is the reusable core — called by both the /messages/process
  * HTTP route and the WhatsApp webhook handler.
  */
+
+// ── AI-suggested escalation reply (PR-014) ────────────────────────
+
+/**
+ * Generate an AI-suggested reply for the human operator.
+ *
+ * Never throws — escalation must not be blocked by AI failure.
+ * Returns null when AI is disabled, unavailable, or returns empty output.
+ *
+ * The suggested reply is operator-facing only — never sent to the customer.
+ * Safety constraints are applied via the AI prompt (no prices, stock, etc.).
+ */
+async function generateSuggestedReply(
+  customerMessage: string,
+  intent: string,
+  escalationReason: string,
+  discoveryContextMessage?: string
+): Promise<string | null> {
+  // Gate: respect AI classification flag
+  if (!validateEnv().AI_CLASSIFICATION_ENABLED) {
+    return null;
+  }
+
+  try {
+    const messages: Array<{ role: 'customer'; content: string }> = [
+      { role: 'customer', content: customerMessage },
+    ];
+
+    // Include discovery context if present
+    if (discoveryContextMessage) {
+      messages.unshift({ role: 'customer', content: discoveryContextMessage });
+    }
+
+    const result = await aiGatewayRouter.summarize({
+      conversationId: `escalation-${Date.now()}`,
+      messages: messages as Parameters<typeof aiGatewayRouter.summarize>[0]['messages'],
+      maxLength: 300,
+    });
+
+    const suggestion = result.summary.suggestedReply;
+    if (suggestion && suggestion.trim().length > 0) {
+      return suggestion.trim();
+    }
+    return null;
+  } catch {
+    // AI failure → null, escalation still created
+    return null;
+  }
+}
+
 export async function processInboundMessage(
   input: ProcessMessageInput
 ): Promise<ProcessMessageResult> {
@@ -385,6 +435,7 @@ export async function processInboundMessage(
   const intentSource = detection.intentSource ?? 'deterministic';
   const aiIntentUsed = intentSource === 'ai';
   let aiReplyUsed = false;
+  let aiSuggestionUsed = false;
   // Outbound delivery trace — only set when a customer reply is sent
   let outboundDelivery: MessageProcessingTrace['outboundDelivery'];
   // Email notification trace — only set when escalation is triggered
@@ -496,11 +547,20 @@ export async function processInboundMessage(
       ? `[Discovery] Original: ${discoveryContext?.originalMessage ?? 'n/a'} | Follow-up: ${input.text}`
       : input.text;
 
+    // ── AI-suggested reply for operator (PR-014) ──────────────────
+    const suggestedReply = await generateSuggestedReply(
+      input.text,
+      detection.intent,
+      effectiveDecision.escalationReason ?? 'unknown',
+      discoveryContext?.originalMessage
+    );
+    aiSuggestionUsed = suggestedReply !== null;
+
     const escalation = await escalationsService.createEscalation({
       conversationId: result.conversation.id,
       reason: effectiveDecision.escalationReason ?? 'unknown',
       reasonDetail: detection.intent,
-      suggestedReply: null,
+      suggestedReply,
       customerPhone: result.customer.phone,
       customerMessage: escalationCustomerMessage,
       detectedIntent: detection.intent,
@@ -530,6 +590,7 @@ export async function processInboundMessage(
     replySource,
     aiIntentUsed,
     aiReplyUsed,
+    aiSuggestionUsed,
     aiReplyEnabled,
     confidence: detection.confidence,
     ...(knowledgeBaseEntryId && { knowledgeBaseEntryId }),

@@ -166,6 +166,9 @@ async function checkDb(): Promise<boolean> {
 }
 
 let testTimestamp = Date.now();
+// Short phone suffix — Date.now() is 13 digits but DB/validator limits to ~18 chars total.
+// Use first 6 digits of timestamp to stay within limits.
+const shortPhoneId = String(testTimestamp).slice(0, 6);
 
 describe('processInboundMessage — trace integration tests', () => {
   const mockedRouter = vi.mocked(aiGatewayRouter);
@@ -1075,11 +1078,164 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(step2.processing!.escalationReason).toBe('product_discovery');
   });
 
-  it('attemptWhatsAppDelivery is called after outbound message storage', async () => {
+  // ── AI-suggested escalation reply (PR-014) ───────────────────────
+
+  it('stores AI-suggested reply when AI classification is enabled', async () => {
     if (!dbAvailable) return;
-    vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
-    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'test-token');
-    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '123456');
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'true');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'human_request',
+      confidence: 0.95,
+    });
+    mockedRouter.summarize.mockResolvedValueOnce({
+      summary: {
+        summary: 'Customer wants a human',
+        keyTopics: ['support'],
+        customerSentiment: 'neutral' as const,
+        escalationReasons: ['human_request'],
+        suggestedReply: 'Hola, gracias por escribirnos. Te paso con un asesor ahora mismo.',
+      },
+      tokensUsed: { input: 50, output: 20 },
+      latencyMs: 200,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812410${testTimestamp}`,
+      text: 'Quiero hablar con un humano urgente',
+    });
+
+    expect(result.processing!.action).toBe('escalate');
+    const trace = result.processing!.trace!;
+    expect(trace.aiSuggestionUsed).toBe(true);
+
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation!.suggestedReply).toBe(
+      'Hola, gracias por escribirnos. Te paso con un asesor ahora mismo.'
+    );
+  });
+
+  it('AI suggestion disabled keeps suggestedReply null', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'false');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'complaint',
+      confidence: 0.9,
+    });
+    mockedRouter.summarize.mockClear();
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812411${testTimestamp}`,
+      text: 'Estoy muy enojado con el servicio',
+    });
+
+    expect(result.processing!.action).toBe('escalate');
+    const trace = result.processing!.trace!;
+    expect(trace.aiSuggestionUsed).toBe(false);
+    expect(mockedRouter.summarize).not.toHaveBeenCalled();
+
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation!.suggestedReply).toBeNull();
+  });
+
+  it('AI summarize failure keeps suggestedReply null and escalation succeeds', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'true');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'stock_question',
+      confidence: 0.85,
+    });
+    mockedRouter.summarize.mockRejectedValueOnce(new Error('AI timeout'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812412${testTimestamp}`,
+      text: 'Tienen la MTB X200 en stock?',
+    });
+
+    expect(result.processing!.action).toBe('escalate');
+    expect(result.success).toBe(true);
+
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation).not.toBeNull();
+    expect(escalation!.suggestedReply).toBeNull();
+  });
+
+  it('product discovery escalation includes AI suggestion when enabled', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'true');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812413${testTimestamp}`;
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+    await processInboundMessage({
+      from: testPhone,
+      text: 'Busco una bici para ciudad',
+    });
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'unknown',
+      confidence: 0.3,
+    });
+    mockedRouter.summarize.mockResolvedValueOnce({
+      summary: {
+        summary: 'Discovery',
+        keyTopics: ['bici', 'ciudad'],
+        customerSentiment: 'positive' as const,
+        escalationReasons: ['product_discovery'],
+        suggestedReply: 'Hola, gracias por tu interés. Para bicis urbanas tenemos varios modelos.',
+      },
+      latencyMs: 150,
+    });
+
+    const step2 = await processInboundMessage({
+      from: testPhone,
+      text: 'La necesito para andar en la ciudad',
+    });
+
+    expect(step2.processing!.action).toBe('escalate');
+    expect(step2.processing!.escalationReason).toBe('product_discovery');
+    expect(step2.processing!.trace.aiSuggestionUsed).toBe(true);
+
+    const escalation = await escalationsService.getEscalationById(
+      step2.processing!.escalationId!
+    );
+    expect(escalation!.suggestedReply).toContain('bicis urbanas');
+  });
+
+  // ── WhatsApp outbound delivery integration ────────────────────────
+
+  it('attemptWhatsAppDelivery is called after outbound message storage', async () => {
     vi.stubEnv('AI_REPLIES_ENABLED', 'false');
 
     mockWhatsAppSender.attemptWhatsAppDelivery.mockResolvedValueOnce({
@@ -1097,7 +1253,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812365${testTimestamp}`,
+      from: `+5493812365${shortPhoneId}`,
       text: 'Hola',
     });
 
@@ -1109,7 +1265,7 @@ describe('processInboundMessage — trace integration tests', () => {
     const [content, to] = mockWhatsAppSender.attemptWhatsAppDelivery.mock.calls[0] as [string, string];
     expect(typeof content).toBe('string');
     expect(content.length).toBeGreaterThan(0);
-    expect(to).toBe(`+5493812365${testTimestamp}`);
+    expect(to).toBe(`+5493812365${shortPhoneId}`);
 
     // Verify trace includes delivery metadata
     const trace = result.processing!.trace!;
