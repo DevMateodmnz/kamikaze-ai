@@ -204,7 +204,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812345${testTimestamp}`,
+      from: `+5493812345${shortPhoneId}`,
       text: 'Hola, buenos días',
     });
 
@@ -231,7 +231,7 @@ describe('processInboundMessage — trace integration tests', () => {
     // Create a verified KB entry for store_hours
     const kbEntry = await knowledgeBaseService.createEntry({
       category: 'store_info',
-      question: `[TEST-${testTimestamp}] Horarios de atención`,
+      question: `[TEST-${shortPhoneId}] Horarios de atención`,
       answer: 'Atendemos de lunes a viernes de 9 a 18.',
       tags: ['horarios'],
       confidence: 0.9,
@@ -246,7 +246,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812346${testTimestamp}`,
+      from: `+5493812346${shortPhoneId}`,
       text: 'Cuáles son los horarios de atención?',
     });
 
@@ -275,7 +275,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812347${testTimestamp}`,
+      from: `+5493812347${shortPhoneId}`,
       text: 'Hola, cómo estás?',
     });
 
@@ -294,7 +294,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
     const kbEntry = await knowledgeBaseService.createEntry({
       category: 'store_info',
-      question: `[TEST-${testTimestamp}] Horarios verificados`,
+      question: `[TEST-${shortPhoneId}] Horarios verificados`,
       answer: 'HORARIO_VERIFICADO: Lunes a viernes 9-18.',
       tags: ['horarios'],
       confidence: 1.0,
@@ -308,7 +308,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812355${testTimestamp}`,
+      from: `+5493812355${shortPhoneId}`,
       text: 'A qué hora abren?',
     });
 
@@ -333,7 +333,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
     const kbEntry = await knowledgeBaseService.createEntry({
       category: 'store_info',
-      question: `[TEST-${testTimestamp}] Ubicación verificada`,
+      question: `[TEST-${shortPhoneId}] Ubicación verificada`,
       answer: 'UBICACION_VERIFICADA: Av. Siempre Viva 742, San Miguel de Tucumán.',
       tags: ['ubicacion'],
       confidence: 1.0,
@@ -347,7 +347,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812356${testTimestamp}`,
+      from: `+5493812356${shortPhoneId}`,
       text: 'Dónde están ubicados?',
     });
 
@@ -370,7 +370,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
     const kbEntry = await knowledgeBaseService.createEntry({
       category: 'store_info',
-      question: `[TEST-${testTimestamp}] Pagos verificados`,
+      question: `[TEST-${shortPhoneId}] Pagos verificados`,
       answer: 'PAGOS_VERIFICADOS: Efectivo, débito, crédito 3 cuotas.',
       tags: ['pago'],
       confidence: 0.9,
@@ -384,7 +384,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812357${testTimestamp}`,
+      from: `+5493812357${shortPhoneId}`,
       text: 'Qué medios de pago aceptan?',
     });
 
@@ -407,7 +407,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
     const kbEntry = await knowledgeBaseService.createEntry({
       category: 'store_info',
-      question: `[TEST-${testTimestamp}] Envíos verificados`,
+      question: `[TEST-${shortPhoneId}] Envíos verificados`,
       answer: 'ENVIOS_VERIFICADOS: Envío gratis en San Miguel de Tucumán.',
       tags: ['envio'],
       confidence: 1.0,
@@ -421,7 +421,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812358${testTimestamp}`,
+      from: `+5493812358${shortPhoneId}`,
       text: 'Hacen envíos a domicilio?',
     });
 
@@ -446,7 +446,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
     await knowledgeBaseService.createEntry({
       category: 'store_info',
-      question: `[TEST-${testTimestamp}] Inactive hours`,
+      question: `[TEST-${shortPhoneId}] Inactive hours`,
       answer: 'Horarios inactivos — no debería usarse.',
       tags: ['horarios'],
       confidence: 0.9,
@@ -460,7 +460,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812359${testTimestamp}`,
+      from: `+5493812359${shortPhoneId}`,
       text: 'Cuáles son los horarios?',
     });
 
@@ -476,7 +476,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
     await knowledgeBaseService.createEntry({
       category: 'store_info',
-      question: `[TEST-${testTimestamp}] Placeholder hours`,
+      question: `[TEST-${shortPhoneId}] Placeholder hours`,
       answer: 'NEEDS_BUSINESS_VERIFICATION: Confirmar horarios.',
       tags: ['horarios'],
       confidence: 0.9,
@@ -490,7 +490,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812360${testTimestamp}`,
+      from: `+5493812360${shortPhoneId}`,
       text: 'A qué hora abren?',
     });
 
@@ -506,7 +506,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
     await knowledgeBaseService.createEntry({
       category: 'store_info',
-      question: `[TEST-${testTimestamp}] Low confidence hours`,
+      question: `[TEST-${shortPhoneId}] Low confidence hours`,
       answer: 'Horarios con baja confianza — no debería usarse.',
       tags: ['horarios'],
       confidence: 0.3, // Must be > 0.5 to be served
@@ -520,7 +520,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812361${testTimestamp}`,
+      from: `+5493812361${shortPhoneId}`,
       text: 'Cuáles son los horarios?',
     });
 
@@ -547,7 +547,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812348${testTimestamp}`,
+      from: `+5493812348${shortPhoneId}`,
       text: 'Estoy muy enojado con el servicio, es una porquería',
     });
 
@@ -573,7 +573,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    const testPhone = `+5493812377${testTimestamp}`;
+    const testPhone = `+5493812377${shortPhoneId}`;
     const testMessage = '¿Tienen MTB rodado 29 en color negro? Necesito para este finde.';
 
     const result = await processInboundMessage({
@@ -612,7 +612,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    const testPhone = `+5493812378${testTimestamp}`;
+    const testPhone = `+5493812378${shortPhoneId}`;
     const testMessage = 'Quiero hablar con un humano, esto es urgente';
 
     const result = await processInboundMessage({
@@ -651,7 +651,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812380${testTimestamp}`,
+      from: `+5493812380${shortPhoneId}`,
       text: 'Quiero hablar con un humano',
     });
 
@@ -680,7 +680,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812381${testTimestamp}`,
+      from: `+5493812381${shortPhoneId}`,
       text: 'Estoy enojado con el servicio',
     });
 
@@ -713,7 +713,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812382${testTimestamp}`,
+      from: `+5493812382${shortPhoneId}`,
       text: 'necesito hablar con alguien urgente',
     });
 
@@ -753,7 +753,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812383${testTimestamp}`,
+      from: `+5493812383${shortPhoneId}`,
       text: 'Estoy muy disconforme con la atención',
     });
 
@@ -799,7 +799,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812349${testTimestamp}`,
+      from: `+5493812349${shortPhoneId}`,
       text: 'Busco una MTB para montaña, presupuesto 500 USD',
     });
 
@@ -830,7 +830,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812350${testTimestamp}`,
+      from: `+5493812350${shortPhoneId}`,
       text: 'Busco una bici de ruta',
     });
 
@@ -850,7 +850,7 @@ describe('processInboundMessage — trace integration tests', () => {
     if (!dbAvailable) return;
     vi.stubEnv('AI_REPLIES_ENABLED', 'false');
 
-    const whatsappId = `wamid.trace-dup-${testTimestamp}`;
+    const whatsappId = `wamid.trace-dup-${shortPhoneId}`;
 
     // First message
     const { processInboundMessage } = await import(
@@ -859,14 +859,14 @@ describe('processInboundMessage — trace integration tests', () => {
 
     await processInboundMessage({
       whatsappMessageId: whatsappId,
-      from: `+5493812351${testTimestamp}`,
+      from: `+5493812351${shortPhoneId}`,
       text: 'Hola',
     });
 
     // Duplicate — same whatsappMessageId
     const dupResult = await processInboundMessage({
       whatsappMessageId: whatsappId,
-      from: `+5493812351${testTimestamp}`,
+      from: `+5493812351${shortPhoneId}`,
       text: 'Hola',
     });
 
@@ -891,7 +891,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    const testPhone = `+5493812400${testTimestamp}`;
+    const testPhone = `+5493812400${shortPhoneId}`;
     const result = await processInboundMessage({
       from: testPhone,
       text: '¿Tienen bicicletas rodado 29?',
@@ -922,7 +922,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    const testPhone = `+5493812401${testTimestamp}`;
+    const testPhone = `+5493812401${shortPhoneId}`;
     const step1 = await processInboundMessage({
       from: testPhone,
       text: '¿Tienen MTB para montaña?',
@@ -974,7 +974,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    const testPhone = `+5493812402${testTimestamp}`;
+    const testPhone = `+5493812402${shortPhoneId}`;
     await processInboundMessage({
       from: testPhone,
       text: '¿Tienen bicis?',
@@ -1020,7 +1020,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    const testPhone = `+5493812403${testTimestamp}`;
+    const testPhone = `+5493812403${shortPhoneId}`;
     await processInboundMessage({
       from: testPhone,
       text: 'Me interesa una bici',
@@ -1054,7 +1054,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    const testPhone = `+5493812404${testTimestamp}`;
+    const testPhone = `+5493812404${shortPhoneId}`;
 
     // Step 1: enter discovery
     mockedRouter.classifyIntent.mockResolvedValueOnce({
@@ -1106,7 +1106,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812410${testTimestamp}`,
+      from: `+5493812410${shortPhoneId}`,
       text: 'Quiero hablar con un humano urgente',
     });
 
@@ -1138,7 +1138,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812411${testTimestamp}`,
+      from: `+5493812411${shortPhoneId}`,
       text: 'Estoy muy enojado con el servicio',
     });
 
@@ -1169,7 +1169,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812412${testTimestamp}`,
+      from: `+5493812412${shortPhoneId}`,
       text: 'Tienen la MTB X200 en stock?',
     });
 
@@ -1192,7 +1192,7 @@ describe('processInboundMessage — trace integration tests', () => {
       '../../src/modules/messages/service.js'
     );
 
-    const testPhone = `+5493812413${testTimestamp}`;
+    const testPhone = `+5493812413${shortPhoneId}`;
 
     mockedRouter.classifyIntent.mockResolvedValueOnce({
       intent: 'product_interest',
@@ -1292,7 +1292,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812366${testTimestamp}`,
+      from: `+5493812366${shortPhoneId}`,
       text: 'Hola',
     });
 
@@ -1334,7 +1334,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812367${testTimestamp}`,
+      from: `+5493812367${shortPhoneId}`,
       text: 'Hola',
     });
 
@@ -1379,7 +1379,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812370${testTimestamp}`,
+      from: `+5493812370${shortPhoneId}`,
       text: 'Hola',
     });
 
@@ -1422,7 +1422,7 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const result = await processInboundMessage({
-      from: `+5493812368${testTimestamp}`,
+      from: `+5493812368${shortPhoneId}`,
       text: 'Estoy enojado con el servicio',
     });
 
