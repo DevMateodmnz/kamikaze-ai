@@ -7,7 +7,7 @@
 
 import type { EscalationStatus } from '@prisma/client';
 import prisma from '../../config/database.js';
-import type { EscalationReason } from './types.js';
+import type { EscalationReason, ClassificationSource } from './types.js';
 import { AppError } from '../../utils/app-error.js';
 
 export type { EscalationReason };
@@ -17,6 +17,13 @@ export interface CreateEscalationInput {
   reason: string;
   reasonDetail?: string | null;
   suggestedReply?: string | null;
+  // ── Operator context (PR-011) — optional for manual escalations ──
+  customerPhone?: string;
+  customerMessage?: string;
+  detectedIntent?: string;
+  intentConfidence?: number | null;
+  classificationSource?: ClassificationSource;
+  summary?: string;
 }
 
 export interface EscalationResponse {
@@ -25,6 +32,13 @@ export interface EscalationResponse {
   reason: string;
   reasonDetail: string | null;
   suggestedReply: string | null;
+  // ── Operator context (PR-011) ──────────────────────────────────
+  customerPhone: string;
+  customerMessage: string;
+  detectedIntent: string;
+  intentConfidence: number | null;
+  classificationSource: string;
+  summary: string;
   status: EscalationStatus;
   notifiedAt: Date | null;
   resolvedAt: Date | null;
@@ -43,7 +57,7 @@ export interface ResolveEscalationInput {
 // ============================================
 
 /**
- * Create a new escalation record.
+ * Create a new escalation record with full operator context.
  */
 export async function createEscalation(input: CreateEscalationInput): Promise<EscalationResponse> {
   const escalation = await prisma.escalation.create({
@@ -52,6 +66,12 @@ export async function createEscalation(input: CreateEscalationInput): Promise<Es
       reason: input.reason,
       reasonDetail: input.reasonDetail ?? null,
       suggestedReply: input.suggestedReply ?? null,
+      customerPhone: input.customerPhone ?? '',
+      customerMessage: input.customerMessage ?? '',
+      detectedIntent: input.detectedIntent ?? '',
+      intentConfidence: input.intentConfidence ?? null,
+      classificationSource: input.classificationSource ?? '',
+      summary: input.summary ?? '',
       status: 'OPEN',
     },
   });
@@ -219,6 +239,12 @@ function mapPrismaToResponse(escalation: {
   reason: string;
   reasonDetail: string | null;
   suggestedReply: string | null;
+  customerPhone: string;
+  customerMessage: string;
+  detectedIntent: string;
+  intentConfidence: number | null;
+  classificationSource: string;
+  summary: string;
   status: EscalationStatus;
   notifiedAt: Date | null;
   resolvedAt: Date | null;
@@ -232,6 +258,12 @@ function mapPrismaToResponse(escalation: {
     reason: escalation.reason,
     reasonDetail: escalation.reasonDetail,
     suggestedReply: escalation.suggestedReply,
+    customerPhone: escalation.customerPhone,
+    customerMessage: escalation.customerMessage,
+    detectedIntent: escalation.detectedIntent,
+    intentConfidence: escalation.intentConfidence,
+    classificationSource: escalation.classificationSource,
+    summary: escalation.summary,
     status: escalation.status,
     notifiedAt: escalation.notifiedAt,
     resolvedAt: escalation.resolvedAt,

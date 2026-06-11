@@ -85,13 +85,19 @@ describe('Escalations Integration Tests', () => {
   });
 
   describe('createEscalation', () => {
-    it('should create a new escalation', async () => {
+    it('should create a new escalation with full operator context', async () => {
       if (!dbAvailable) return;
       const escalation = await escalationsService.createEscalation({
         conversationId: testConversationId,
         reason: 'human_request',
         reasonDetail: 'Customer asked for human',
         suggestedReply: 'Connecting you with an advisor',
+        customerPhone: '+5493815551234',
+        customerMessage: 'Quiero hablar con una persona por favor',
+        detectedIntent: 'human_request',
+        intentConfidence: 0.85,
+        classificationSource: 'deterministic',
+        summary: 'Escalation: explicit_human_request. Customer: +5493815551234 asked for human.',
       });
 
       expect(escalation.id).toBeDefined();
@@ -100,18 +106,33 @@ describe('Escalations Integration Tests', () => {
       expect(escalation.status).toBe('OPEN');
       expect(escalation.notifiedAt).toBeNull();
       expect(escalation.resolvedAt).toBeNull();
+      // Operator context fields
+      expect(escalation.customerPhone).toBe('+5493815551234');
+      expect(escalation.customerMessage).toBe('Quiero hablar con una persona por favor');
+      expect(escalation.detectedIntent).toBe('human_request');
+      expect(escalation.intentConfidence).toBe(0.85);
+      expect(escalation.classificationSource).toBe('deterministic');
+      expect(escalation.summary).toContain('explicit_human_request');
     });
 
-    it('should create escalation with minimal input', async () => {
+    it('should create escalation with minimal input and empty context defaults', async () => {
       if (!dbAvailable) return;
       const escalation = await escalationsService.createEscalation({
         conversationId: testConversationId,
         reason: 'stock_question',
+        customerPhone: '+5493816660000',
+        customerMessage: '¿Tienen MTB?',
+        detectedIntent: 'stock_question',
+        classificationSource: 'fallback',
+        summary: 'Stock question escalation',
       });
 
       expect(escalation.id).toBeDefined();
       expect(escalation.reason).toBe('stock_question');
       expect(escalation.status).toBe('OPEN');
+      expect(escalation.customerMessage).toBe('¿Tienen MTB?');
+      expect(escalation.detectedIntent).toBe('stock_question');
+      expect(escalation.intentConfidence).toBeNull();
     });
   });
 
@@ -121,6 +142,11 @@ describe('Escalations Integration Tests', () => {
       const created = await escalationsService.createEscalation({
         conversationId: testConversationId,
         reason: 'complaint',
+        customerPhone: '+5493810000000',
+        customerMessage: 'test',
+        detectedIntent: 'complaint',
+        classificationSource: 'deterministic',
+        summary: 'test',
       });
 
       const found = await escalationsService.getEscalationById(created.id);
@@ -175,6 +201,11 @@ describe('Escalations Integration Tests', () => {
       const created = await escalationsService.createEscalation({
         conversationId: testConversationId,
         reason: 'low_confidence',
+        customerPhone: '+5493810000001',
+        customerMessage: 'test',
+        detectedIntent: 'unknown',
+        classificationSource: 'deterministic',
+        summary: 'test',
       });
 
       const updated = await escalationsService.updateEscalationStatus(created.id, 'IN_PROGRESS');
@@ -195,6 +226,11 @@ describe('Escalations Integration Tests', () => {
       const created = await escalationsService.createEscalation({
         conversationId: testConversationId,
         reason: 'human_request',
+        customerPhone: '+5493810000002',
+        customerMessage: 'test',
+        detectedIntent: 'human_request',
+        classificationSource: 'ai',
+        summary: 'test',
       });
 
       const notified = await escalationsService.markNotified(created.id);
@@ -209,6 +245,11 @@ describe('Escalations Integration Tests', () => {
       const created = await escalationsService.createEscalation({
         conversationId: testConversationId,
         reason: 'stock_question',
+        customerPhone: '+5493810000003',
+        customerMessage: 'test',
+        detectedIntent: 'stock_question',
+        classificationSource: 'fallback',
+        summary: 'test',
       });
 
       const resolved = await escalationsService.resolveEscalation(created.id, {

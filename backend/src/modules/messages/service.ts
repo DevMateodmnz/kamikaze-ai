@@ -404,11 +404,20 @@ export async function processInboundMessage(
       detection.intent
     );
 
+    // Build operator-readable summary from available context
+    const escalationSummary = `Escalation triggered: ${decision.escalationReason}. Customer message: "${input.text.length > 200 ? input.text.substring(0, 197) + '...' : input.text}". Intent: ${detection.intent} (confidence: ${detection.confidence.toFixed(2)}, source: ${intentSource}). Conversation: ${result.conversation.id}.`;
+
     const escalation = await escalationsService.createEscalation({
       conversationId: result.conversation.id,
       reason: decision.escalationReason ?? 'unknown',
       reasonDetail: detection.intent,
       suggestedReply: null,
+      customerPhone: result.customer.phone,
+      customerMessage: input.text,
+      detectedIntent: detection.intent,
+      intentConfidence: detection.confidence,
+      classificationSource: intentSource,
+      summary: escalationSummary,
     });
     escalationId = escalation.id;
     replySource = 'escalation';

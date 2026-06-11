@@ -144,6 +144,7 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://kamikaze:kamikaze_
 
 import { prisma } from '../../src/config/database.js';
 import { knowledgeBaseService } from '../../src/modules/knowledge-base/service.js';
+import { escalationsService } from '../../src/modules/escalations/service.js';
 
 let dbAvailable = false;
 
@@ -546,6 +547,80 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(trace.replySource).toBe('escalation');
     expect(trace.aiIntentUsed).toBe(true);   // AI classified the intent
     expect(trace.aiReplyUsed).toBe(false);    // no AI reply generated (escalated)
+  });
+
+  it('escalation record includes enriched operator context (PR-011)', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'stock_question',
+      confidence: 0.82,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812377${testTimestamp}`;
+    const testMessage = '¿Tienen MTB rodado 29 en color negro? Necesito para este finde.';
+
+    const result = await processInboundMessage({
+      from: testPhone,
+      text: testMessage,
+    });
+
+    expect(result.processing!.escalationId).toBeTruthy();
+
+    // Fetch the escalation record and verify enriched context
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation).not.toBeNull();
+    expect(escalation!.customerPhone).toBe(testPhone);
+    expect(escalation!.customerMessage).toBe(testMessage);
+    expect(escalation!.detectedIntent).toBe('stock_question');
+    expect(escalation!.intentConfidence).toBe(0.82);
+    expect(escalation!.classificationSource).toBe('ai');
+    expect(escalation!.reason).toBe('stock_confirmation_required');
+    expect(escalation!.reasonDetail).toBe('stock_question');
+    expect(escalation!.summary).toContain('stock_confirmation_required');
+    expect(escalation!.summary).toContain('stock_question');
+    expect(escalation!.summary).toContain('0.82');
+    expect(escalation!.summary).toContain('ai');
+    // Verify long message truncation in summary
+    expect(escalation!.summary).toContain('...');
+  });
+
+  it('escalation for human_request stores full operator context with deterministic source', async () => {
+    if (!dbAvailable) return;
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812378${testTimestamp}`;
+    const testMessage = 'Quiero hablar con un humano, esto es urgente';
+
+    const result = await processInboundMessage({
+      from: testPhone,
+      text: testMessage,
+    });
+
+    expect(result.processing!.escalationId).toBeTruthy();
+
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation).not.toBeNull();
+    expect(escalation!.detectedIntent).toBe('human_request');
+    expect(escalation!.classificationSource).toBe('fallback');
+    expect(escalation!.reasonDetail).toBe('human_request');
+    expect(escalation!.customerPhone).toBe(testPhone);
+    expect(escalation!.customerMessage).toBe(testMessage);
+    expect(escalation!.summary).toContain('explicit_human_request');
   });
 
   // ── AI reply path (mocked provider) ──────────────────────────────

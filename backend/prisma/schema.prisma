@@ -122,6 +122,15 @@ model Escalation {
   reason         String          @db.VarChar(100) // 'low_confidence' | 'stock_question' | 'human_request' | etc.
   reasonDetail   String?         @db.Text
   suggestedReply String?         @db.Text
+
+  // ── Operator context (PR-011) ──────────────────────────────────
+  customerPhone       String   @default("") @db.VarChar(30) // WhatsApp sender, for operator callback
+  customerMessage     String   @default("") @db.Text        // Inbound message text that triggered escalation
+  detectedIntent      String   @default("") @db.VarChar(50) // Classified intent (e.g. 'stock_question')
+  intentConfidence    Float?                    // Classification confidence
+  classificationSource String  @default("") @db.VarChar(20) // 'deterministic' | 'ai' | 'fallback'
+  summary             String   @default("") @db.Text        // Human-readable summary for operator
+
   status         EscalationStatus @default(OPEN)
   notifiedAt     DateTime?
   resolvedAt     DateTime?
