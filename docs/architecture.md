@@ -1,7 +1,7 @@
 # Kamikaze AI WhatsApp - Architecture Document
 
-**Status**: Draft — Pending Implementation
-**Version**: 1.0
+**Status**: MVP Release Candidate
+**Version**: 1.0 — Updated 2026-06-11
 
 ---
 
@@ -51,8 +51,7 @@ n8n handles:
 - Normalizing payloads
 - Calling backend REST API
 - Sending WhatsApp replies
-- Routing to escalation workflows
-- Sending escalation email notifications via SMTP (Gmail-compatible)
+- Routing to escalation workflows (legacy; current MVP sends email directly from backend)
 - Future optional: Slack, Discord, Telegram, CRM integrations
 
 n8n does NOT:
@@ -113,8 +112,8 @@ backend/src/
 ### 3.3 API Contract (Backend → n8n)
 
 ```typescript
-// Inbound message from n8n
-POST /api/v1/messages/inbound
+// Inbound message processing (full pipeline)
+POST /api/v1/messages/process
 Body: {
   whatsappMessageId: string;
   from: string;           // E.164 phone format

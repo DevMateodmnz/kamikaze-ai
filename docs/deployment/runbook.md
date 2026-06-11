@@ -22,9 +22,9 @@
 | Service | Required for | Skip for dry-run? |
 |---------|-------------|-------------------|
 | Meta WhatsApp Cloud API | Live inbound/outbound WhatsApp | ✅ Yes — dry-run works without it |
-| SMTP provider (Gmail, etc.) | Escalation email notifications | ❌ No — SMTP vars are required at startup |
+| SMTP provider (Gmail, etc.) | Escalation email notifications | ✅ Yes — SMTP vars are optional, server starts without them |
 | MiniMax API key | AI intent classification + AI replies | ✅ Yes — deterministic fallback works without it |
-| n8n | Escalation email workflow orchestration | ✅ Yes — escalation records are created but email only sends via n8n |
+| n8n | Legacy email workflow orchestration | ✅ Yes — email notifications are now sent directly from backend |
 
 > **Dry-run demo**: You can demonstrate the full message processing pipeline (classification → reply → escalation) with zero external credentials by using dry-run WhatsApp mode and deterministic intent detection.
 
@@ -48,9 +48,10 @@ INTERNAL_API_KEY=<at least 20 chars, generate with: openssl rand -hex 32>
 
 ### 2.3 SMTP (escalation email)
 
-All 7 SMTP vars are **required** at startup. The backend validates them before accepting traffic.
+SMTP vars are **optional** — the server starts without them. Email notification is gated by `ESCALATION_EMAIL_ENABLED` (default `false` — safe demo mode).
 
 ```bash
+# Only needed when ESCALATION_EMAIL_ENABLED=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
@@ -58,6 +59,7 @@ SMTP_USER=your-email@gmail.com
 SMTP_PASS=<gmail-app-password>
 ESCALATION_EMAIL_FROM=your-email@gmail.com
 ESCALATION_EMAIL_TO=alerts@example.com
+ESCALATION_EMAIL_ENABLED=false  # Set to true to enable
 ```
 
 For Gmail: generate an App Password at https://myaccount.google.com/apppasswords.
@@ -221,10 +223,11 @@ Expected:
 
 ### 6.1 How escalation works
 
-1. Certain intents (`complaint`, `human_request`, `stock_question`, `discount_request`, `warranty_or_return`, `price_question`) automatically create an escalation record with `status=OPEN`.
-2. n8n workflow 008 polls `GET /api/v1/escalations?status=OPEN`, formats an HTML email, and sends it via `POST /api/v1/internal/send-email`.
-3. After successful email, n8n calls `PATCH /api/v1/escalations/:id/notify` → `status=NOTIFIED`.
+1. Certain intents (`complaint`, `human_request`, `stock_question`, `discount_request`, `warranty_or_return`, `price_question`, `unknown`) automatically create an escalation record with enriched operator context (customer phone, message, intent, confidence, summary).
+2. If `ESCALATION_EMAIL_ENABLED=true` and SMTP credentials are configured, the backend sends an email notification directly (via nodemailer) with full escalation context.
+3. On successful email delivery, the escalation is marked `status=NOTIFIED`. On failure, the escalation stays `OPEN` and processing continues.
 4. A human agent reviews and resolves via `PATCH /api/v1/escalations/:id/resolve`.
+5. Escalated conversations include AI-suggested operator replies when `AI_CLASSIFICATION_ENABLED=true`.
 
 ### 6.2 Check active escalations
 
@@ -247,9 +250,9 @@ curl -s -X POST http://localhost:3000/api/v1/internal/send-email \
 - `401` → missing or invalid `X-API-Key`
 - `502` → SMTP connection failed (check SMTP env vars)
 
-### 6.4 Without n8n
+### 6.4 Without SMTP / n8n
 
-Escalation **records** are created automatically by the backend. Email **delivery** requires n8n workflow 008 to be imported and active. For a dry-run demo, you can show the escalation record creation without sending actual emails.
+Escalation **records** are created automatically by the backend with enriched context (PR-011). Email **delivery** requires `ESCALATION_EMAIL_ENABLED=true` and valid SMTP credentials. For a dry-run demo, you can show the escalation record creation without sending actual emails — all enriched context is available via the API.
 
 ---
 
@@ -295,13 +298,11 @@ Full step-by-step guide: [WhatsApp Outbound Sandbox Test](../manual-tests/whatsa
 
 ## 8. Troubleshooting
 
-### SMTP validation fails at startup
+### SMTP / email notification
 
-```
-Error: Invalid environment variables: SMTP_USER: String must contain at least 1 character(s)
-```
+**Email disabled (safe default)**: Set `ESCALATION_EMAIL_ENABLED=true` to enable. SMTP vars are optional — server starts without them. If enabled but SMTP credentials are invalid, email send fails gracefully (escalation still created, trace records the failure).
 
-**Fix**: All 7 SMTP vars are required. Set `SMTP_USER`, `SMTP_PASS`, `ESCALATION_EMAIL_FROM`, and `ESCALATION_EMAIL_TO` in `.env`. Even for dry-run demos, these must be non-empty.
+**Email not sending**: Check that `ESCALATION_EMAIL_ENABLED=true` and all SMTP vars (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `ESCALATION_EMAIL_FROM`, `ESCALATION_EMAIL_TO`) are configured with real values (not placeholders).
 
 ### Missing or invalid X-API-Key
 
@@ -355,7 +356,7 @@ Run these before demo or handoff:
 ```bash
 cd backend
 
-# Full test suite (should be 472/472, 23 suites)
+# Full test suite (should be 509/510, 23 suites — 1 pre-existing DB credential mismatch)
 npm test
 
 # TypeScript build (should complete with no errors)
@@ -372,10 +373,10 @@ npm run lint
 
 | Check | Expected |
 |-------|----------|
-| `npm test` | 472 passed, 23 suites |
+| `npm test` | 509/510 passed, 23 suites (1 pre-existing DB credential issue) |
 | `npm run build` | Clean (0 errors) |
 | `git diff --check` | Clean |
-| `npm run lint` | 69 errors + 65 warnings (pre-existing) |
+| `npm run lint` | 69 errors + 65 warnings (pre-existing baseline) |
 
 ---
 
