@@ -377,4 +377,259 @@ Safe things to report:
 
 ---
 
-*Last Updated: 2026-06-04*
+*Last Updated: 2026-06-11*
+
+---
+
+## Current MVP Status (2026-06-11)
+
+### Local Validation: ✅ PASSING
+
+- **WhatsApp webhook verification tests**: 26/26 passing
+- **WhatsApp sender tests**: 15/15 passing (disabled, config_missing, dry_run, delivered, delivery_failed)
+- **Message-processing trace tests**: outbound delivery trace present/absent correctly
+- **Dry-run demo mode**: working (simulated delivery, no Meta credentials)
+- **Full test suite**: 509/510 passing (1 pre-existing DB credential mismatch, not WhatsApp-related)
+
+### Real Meta Validation: ⏳ BLOCKED — Credentials Pending
+
+The following Meta credentials are **not yet configured** in the local environment:
+
+| Variable | Status | Required For |
+|----------|--------|-------------|
+| `WHATSAPP_ACCESS_TOKEN` | ❌ Missing | Live outbound delivery |
+| `WHATSAPP_PHONE_NUMBER_ID` | ❌ Missing | Live outbound delivery |
+| `WHATSAPP_APP_SECRET` | ❌ Missing | Webhook signature verification |
+| `WHATSAPP_VERIFY_TOKEN` | ❌ Missing | Webhook subscription handshake |
+| Public HTTPS URL | ❌ Not configured | Meta webhook callback |
+
+These are placeholder values in `.env.demo.example` — the system is designed to run safely without them.
+
+### Code Readiness for Meta
+
+The WhatsApp integration code is **complete and tested locally**:
+
+| Component | Status | Tests |
+|-----------|--------|-------|
+| Webhook verification (HMAC-SHA256) | ✅ Code complete | 26 tests |
+| Webhook challenge handshake (GET) | ✅ Code complete | In webhook tests |
+| Inbound message parsing | ✅ Code complete | 26 tests |
+| Outbound delivery (live mode) | ✅ Code complete | 15 tests |
+| Outbound delivery (dry_run mode) | ✅ Demo-ready | 15 tests |
+| Store-first pattern | ✅ Code complete | Persistence tests |
+| Feature flags (WHATsAPP_ENABLED, etc.) | ✅ Code complete | Env tests |
+
+### What Remains for Live Validation
+
+Once Mateo obtains real Meta credentials:
+
+1. **Meta Developer Console setup** (see next section)
+2. **Start backend in live mode**: `WHATSAPP_OUTBOUND_ENABLED=true WHATSAPP_OUTBOUND_MODE=live WHATSAPP_ENABLED=true npx tsx src/server.ts`
+3. **Configure Meta webhook**: Point to `https://<your-domain>/api/v1/security/whatsapp/webhook`
+4. **Send test message** from Meta sandbox phone
+5. **Verify trace**: `outboundDelivery.sent=true`, `outboundDelivery.reason=delivered`
+6. **Run**: `npm test` to confirm no regressions
+
+---
+
+## Meta Developer Console Setup (Mateo's Steps)
+
+### 1. Create/Configure Meta App
+
+1. Go to https://developers.facebook.com/
+2. Create a new app or use existing — select "Business" type
+3. Add WhatsApp product to the app
+4. In WhatsApp > API Setup:
+   - Note your **Phone Number ID** (numeric string)
+   - Generate a **Permanent Access Token** (or use a System User token)
+   - Note the **App Secret** from App Settings > Basic
+
+### 2. Configure Test Phone
+
+1. In WhatsApp > API Setup, find the "To" field
+2. Send a template message to your personal WhatsApp to verify receipt
+3. Your personal phone number is now a verified test recipient
+
+### 3. Set Environment Variables
+
+```bash
+# In backend/.env (gitignored — NEVER commit)
+WHATSAPP_ENABLED=true
+WHATSAPP_OUTBOUND_ENABLED=true
+WHATSAPP_OUTBOUND_MODE=live
+WHATSAPP_PHONE_NUMBER_ID=<from Meta dashboard>
+WHATSAPP_ACCESS_TOKEN=<from Meta dashboard>
+WHATSAPP_APP_SECRET=<from Meta app settings>
+WHATSAPP_VERIFY_TOKEN=<generate with: openssl rand -hex 16>
+WHATSAPP_API_VERSION=v21.0
+```
+
+### 4. Create Public HTTPS URL for Webhook
+
+Meta requires HTTPS. Use one of:
+
+```bash
+# Option A: ngrok (recommended for local dev)
+ngrok http 3000
+# → Forwarding: https://xxxx.ngrok-free.app → http://localhost:3000
+
+# Option B: Cloudflare Tunnel
+cloudflared tunnel --url http://localhost:3000
+
+# Option C: Deploy to a server with a public domain and SSL
+```
+
+### 5. Configure Meta Webhook
+
+1. In Meta App Dashboard > WhatsApp > Configuration
+2. Callback URL: `https://<your-public-url>/api/v1/security/whatsapp/webhook`
+3. Verify Token: `<WHATSAPP_VERIFY_TOKEN value>`
+4. Click "Verify and Save"
+5. Subscribe to `messages` webhook field
+
+### 6. Send Test Message
+
+```bash
+# Start backend
+cd backend
+npx tsx src/server.ts
+
+# Send test via processing endpoint (simulates webhook delivery)
+curl -X POST http://localhost:3000/api/v1/messages/process \
+  -H "Content-Type: application/json" \
+  -d '{
+    "whatsappMessageId": "wa-live-test-001",
+    "from": "<YOUR_TEST_PHONE>",
+    "text": "Hola, buenos días"
+  }'
+```
+
+### 7. Verify Outbound Delivery
+
+Expected trace:
+```json
+"outboundDelivery": {
+  "attempted": true,
+  "sent": true,
+  "reason": "delivered",
+  "waMessageId": "wamid.xxxxxxxxxxxx"
+}
+```
+
+### 8. Verify Webhook (Meta → Backend)
+
+Send a message from your WhatsApp to the test phone number:
+- Backend logs should show incoming POST to `/api/v1/security/whatsapp/webhook`
+- Meta should NOT retry (HTTP 200)
+- Processing pipeline runs: intent detection → decision → reply/escalate
+
+### 9. Cleanup
+
+```bash
+# After testing, immediately disable outbound
+# Set WHATSAPP_OUTBOUND_ENABLED=false and restart
+```
+
+---
+
+## Preflight Check Script
+
+Run this before attempting live validation:
+
+```bash
+#!/bin/bash
+# whatsapp-live-preflight.sh
+# Run before attempting real Meta validation
+
+echo "=== WhatsApp Live Validation Preflight ==="
+echo ""
+
+# 1. Check required env vars
+errors=0
+for var in WHATSAPP_ACCESS_TOKEN WHATSAPP_PHONE_NUMBER_ID WHATSAPP_APP_SECRET WHATSAPP_VERIFY_TOKEN; do
+  val="${!var:-}"
+  if [ -z "$val" ]; then
+    echo "❌ $var is not set"
+    ((errors++))
+  elif [[ "$val" == *"your_"* ]] || [[ "$val" == *"change_me"* ]]; then
+    echo "⚠️  $var looks like a placeholder"
+    ((errors++))
+  else
+    echo "✅ $var is set (len=${#val})"
+  fi
+done
+
+echo ""
+echo "=== Required flags ==="
+for var in WHATSAPP_ENABLED WHATSAPP_OUTBOUND_ENABLED; do
+  val="${!var:-}"
+  if [ "$val" != "true" ]; then
+    echo "❌ $var is '$val' (must be 'true')"
+    ((errors++))
+  else
+    echo "✅ $var=$val"
+  fi
+done
+
+val="${WHATSAPP_OUTBOUND_MODE:-}"
+if [ "$val" != "live" ]; then
+  echo "❌ WHATSAPP_OUTBOUND_MODE is '$val' (must be 'live')"
+  ((errors++))
+else
+  echo "✅ WHATSAPP_OUTBOUND_MODE=live"
+fi
+
+echo ""
+echo "=== Backend health ==="
+if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+  echo "✅ Backend is running"
+else
+  echo "❌ Backend is NOT running"
+  ((errors++))
+fi
+
+echo ""
+echo "=== Local tests ==="
+cd backend
+test_output=$(npx vitest run tests/unit/whatsapp-sender.test.ts tests/unit/whatsapp-webhook.test.ts 2>&1)
+if echo "$test_output" | grep -q "Tests.*0 failed"; then
+  echo "✅ WhatsApp tests pass"
+else
+  echo "❌ WhatsApp tests have failures"
+  echo "$test_output" | tail -10
+  ((errors++))
+fi
+
+echo ""
+if [ $errors -eq 0 ]; then
+  echo "✅ ALL CHECKS PASSED — ready for live Meta validation"
+else
+  echo "❌ $errors check(s) failed — fix before attempting live validation"
+fi
+```
+
+---
+
+## Validation Report Template
+
+When live validation is completed, fill in:
+
+| Field | Value |
+|-------|-------|
+| Date | |
+| Meta App ID | (masked) |
+| Phone Number ID | (masked) |
+| Test phone used | (masked) |
+| Backend startup command | |
+| Webhook URL configured | |
+| Webhook verification | ✅ / ❌ |
+| Inbound message received | ✅ / ❌ |
+| Intent detected | |
+| Outbound delivery attempted | ✅ / ❌ |
+| `outboundDelivery.sent` | true / false |
+| `outboundDelivery.reason` | delivered / delivery_failed |
+| `outboundDelivery.waMessageId` | wamid.xxxxxxxxxxxx / absent |
+| Test phone received reply | ✅ / ❌ |
+| Full test suite after | 509/510 (unchanged pre-existing) |
+
+---
