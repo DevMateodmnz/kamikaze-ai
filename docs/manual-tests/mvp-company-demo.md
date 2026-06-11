@@ -1,18 +1,104 @@
-# MVP Company Demo — End-to-End Runbook
+# MVP Company Demo — Bicycle Shop Runbook
 
 ## What This Demo Proves
 
-- The backend receives a WhatsApp-like customer message, classifies the intent (greeting, product interest, complaint, etc.), makes a decision (reply or escalate), generates an appropriate reply using your company's configured data, and records everything — **without needing any external credentials**.
+- The backend receives a WhatsApp-like customer message, classifies the intent (greeting, product interest, store hours, complaint, etc.), makes a decision (reply or escalate), generates an appropriate reply using your company's configured data, and records everything — **without needing any external credentials**.
 - The full pipeline works: intake → intent detection → decision → reply selection → outbound trace.
-- Escalation records are created automatically for high-priority intents like complaints and human requests.
-- The system is configurable per business via environment variables (name, hours, location, payment methods, product categories).
+- Escalation records are created automatically for intents where a bot should never answer: stock questions, price questions, discount requests, warranty claims, complaints, and explicit human requests.
+- The system is configurable per business via environment variables (name, categories, hours, location, payment methods, shipping policy).
 
 ## What This Demo Does NOT Prove
 
-- Real WhatsApp delivery (requires a valid Meta access token and an authorized recipient phone number).
-- AI-powered intent classification or reply generation (those require an AI provider key — MiniMax, OpenAI, etc.).
-- Email delivery for escalations (requires valid SMTP credentials).
-- Production load or multi-tenant behavior.
+- **Real WhatsApp delivery** — requires a valid Meta access token and an authorized recipient phone number. The `dry_run` mode simulates delivery.
+- **AI-powered intent classification or reply generation** — those require an AI provider key (MiniMax, OpenAI, etc.). The demo uses deterministic keyword matching.
+- **Email delivery for escalations** — requires valid SMTP credentials. The demo creates escalation records but does not send email.
+- **Inventory or pricing accuracy** — the system never invents stock levels, prices, or discounts. Those intents always escalate.
+- **Production load or multi-tenant behavior** — tested with one company profile at a time.
+
+---
+
+## How the Processing Pipeline Works
+
+A customer message goes through five stages. This is the same code that runs in production — only the delivery mode changes.
+
+### 1. Intake & Validation
+
+```
+POST /api/v1/messages/process
+Body: { from: "+5493815551234", text: "¿Cuáles son los horarios?" }
+```
+
+Zod validates the payload. Invalid messages return HTTP 400 immediately.
+
+### 2. Persistence (idempotent)
+
+The system identifies or creates a `Customer` record keyed by phone number. It gets or creates an active `Conversation`. It stores the inbound `Message` with `direction=INBOUND`. A unique `whatsappMessageId` prevents duplicates — if the same message arrives twice, the existing records are returned and processing is skipped.
+
+### 3. Intent Detection
+
+The `detector.ts` runs **deterministic keyword matching** against 15 intent categories. It uses word-boundary regex matching with Argentine Spanish keywords (e.g., `bicicleta`, `rodado`, `MTB` for `product_interest`; `horarios`, `abren`, `cierran` for `store_hours`). Higher keyword-match counts win; priority only breaks ties.
+
+In demo mode (`AI_CLASSIFICATION_ENABLED=false`), AI classification is skipped entirely — zero external API calls.
+
+### 4. Decision: Reply or Escalate
+
+The `decision-engine.ts` is a **pure function** — same input always produces same output. Six intents always escalate:
+
+| Intent | Escalation Reason |
+|--------|------------------|
+| `human_request` | Customer explicitly asked for a person |
+| `stock_question` | Bot must never claim stock availability |
+| `price_question` | Bot must never quote prices |
+| `discount_request` | Discounts require human approval |
+| `warranty_or_return` | Warranty/return terms need verification |
+| `complaint` | Customer dissatisfaction needs human touch |
+
+Nine intents reply safely with company-configured templates:
+
+| Intent | Reply Source |
+|--------|-------------|
+| `greeting` | Template (company name) |
+| `product_interest` | Template (product categories) |
+| `store_hours` | KB if verified, else template (COMPANY_HOURS) |
+| `store_location` | KB if verified, else template (COMPANY_LOCATION) |
+| `payment_methods` | KB if verified, else template (COMPANY_PAYMENT_METHODS) |
+| `shipping` | Template (COMPANY_SHIPPING_POLICY) |
+| `thanks`, `goodbye`, `unknown` | Template |
+
+### 5. Delivery (dry-run in demo)
+
+For **reply** actions: the reply text is determined, an outbound message is stored, and `attemptWhatsAppDelivery()` is called. In `dry_run` mode, delivery is simulated — `sent=false`, `reason=dry_run`, and `wouldSend` contains the exact text that would go to WhatsApp.
+
+For **escalate** actions: the conversation status changes to `ESCALATED`, an escalation record is created, and **no WhatsApp reply is sent**. The trace has no `outboundDelivery` field (it is absent, not null).
+
+---
+
+## Business-Friendly Explanation
+
+### What it does
+
+Kamikaze AI is an **automated WhatsApp assistant for bicycle shops**. A customer writes on WhatsApp — "¿Tienen MTB rodado 29?" — and the assistant understands what they want and responds with relevant information.
+
+### Where the answers come from
+
+All answers are driven by **your business data**: your company name, product categories, store hours, location, payment methods, and shipping policy. These live in a simple configuration file (`.env`). Change them anytime without touching code.
+
+### What it does NOT do automatically (on purpose)
+
+The assistant **intentionally escalates** to a human for:
+
+- **Stock availability** — "¿Tenés tal bici?" → escalates. A bot should never claim something is in stock when it might not be.
+- **Prices** — "¿Cuánto sale?" → escalates. Prices change; a bot can't quote reliably.
+- **Discounts** — "¿Me hacés descuento?" → escalates. Requires human judgment.
+- **Warranty / returns** — "¿Tiene garantía?" → escalates. Terms vary by brand and product.
+- **Complaints** — "La bici llegó rota" → escalates. Customer satisfaction needs a human.
+- **Human requests** — "Quiero hablar con una persona" → escalates. Respect the customer.
+
+This is a **safety design**, not a limitation. The bot handles what it can answer reliably (greetings, store info, product guidance) and escalates everything that requires judgment or real-time data.
+
+### How to explain dry-run to a client
+
+> "What we're seeing now is the **full backend** working locally. The assistant receives messages, understands intent, and generates replies — all from your business data. The only thing simulated is the final WhatsApp delivery. When we plug in real Meta credentials, the exact same code delivers to WhatsApp. No rewrites, no surprises."
 
 ---
 
@@ -28,27 +114,24 @@
    cd backend && npm install && npx prisma generate && npx prisma db push
    ```
 
-3. **Knowledge Base** seeded (choose one):
+3. **Knowledge Base** seeded:
    ```bash
-   # Option A: Acme Store demo (generic electronics)
-   cp data/kb-verified-acme.example.json data/kb-verified.json
-   npm run seed:kb
-
-   # Option B: Kamikaze Bikes legacy
-   npm run seed:kb
+   cd backend && npm run seed:kb
    ```
+
+   This creates inline bike-shop entries (bike types FAQ, children's bikes, repairs) plus inactive placeholders for hours/location/payment/shipping. For a real business, fill in `data/kb-verified.json` with verified answers and re-seed.
 
 4. **`.env` file** — copy the demo-ready example:
    ```bash
    cd backend
    cp .env.demo.example .env
-   # Edit DATABASE_URL if your PostgreSQL credentials differ
    ```
 
    The demo env file pre-configures:
-   - `WHATSAPP_OUTBOUND_MODE=dry_run` (no Meta API)
-   - `AI_CLASSIFICATION_ENABLED=false` (deterministic intents, no AI cost)
-   - `AI_REPLIES_ENABLED=false` (predictable template replies)
+   - `COMPANY_NAME=Kamikaze Bikes` — bicycle shop identity
+   - `WHATSAPP_OUTBOUND_MODE=dry_run` — no Meta API required
+   - `AI_CLASSIFICATION_ENABLED=false` — deterministic intents, zero AI cost
+   - `AI_REPLIES_ENABLED=false` — predictable template replies
    - Dummy SMTP values (required at startup, no real email sent)
 
    See `.env.demo.example` for all values and their comments.
@@ -65,40 +148,38 @@ cd backend && npm run demo
 
 This starts the backend with dry-run WhatsApp mode enabled. The `demo` npm script sets `WHATSAPP_OUTBOUND_ENABLED=true` and `WHATSAPP_OUTBOUND_MODE=dry_run` automatically.
 
-> **Tip**: Copy `.env.demo.example` → `.env` first for a fully pre-configured demo environment with safe dummy values.
-
-### Manual start (for custom configuration)
-
-```bash
-cd backend
-WHATSAPP_OUTBOUND_ENABLED=true \
-  WHATSAPP_OUTBOUND_MODE=dry_run \
-  npx tsx src/server.ts
-```
-
 ### Verify the server is up
 
 ```bash
 curl http://localhost:3000/health
 # → {"status":"ok",...}
+
+curl http://localhost:3000/health/ready
+# → {"status":"ok","checks":{"database":"ok"},...}
 ```
 
 ---
 
 ## Automated Demo Script
 
-Run all demo scenarios at once:
+Run all 8 demo scenarios at once:
 
 ```bash
 ./scripts/demo-dry-run.sh
 ```
 
-The script runs preflight checks before sending messages:
-- Verifies `curl` is installed
-- Detects `jq` (preferred) or `python3` (fallback) for JSON parsing
-- Checks the backend is reachable — if not, prints the exact `cd backend && npm run demo` command to start it
+The script runs preflight checks (curl, jq, backend health, database readiness), then sends 8 bicycle-shop messages and displays the intent, action, reply source, escalation status, and dry-run outbound trace:
 
-It sends 7 sample messages covering greetings, product interest, store info, payment methods, complaints, and human requests — and displays the intent, action, reply source, escalation status, and dry-run outbound trace for each one.
+| # | Message | Expected Intent | Expected Action |
+|---|---------|----------------|-----------------|
+| 1 | `Hola, buenos días` | `greeting` | `reply` |
+| 2 | `¿Tienen bicicletas rodado 29 disponibles?` | `stock_question` | `escalate` |
+| 3 | `¿Cuáles son los horarios?` | `store_hours` | `reply` |
+| 4 | `¿Dónde queda el local?` | `store_location` | `reply` |
+| 5 | `¿Aceptan transferencia o tarjeta?` | `payment_methods` | `reply` |
+| 6 | `¿Hacen envíos a Lules o San Miguel?` | `shipping` | `reply` |
+| 7 | `Tengo una queja, la bici llegó con un problema` | `complaint` | `escalate` |
+| 8 | `Quiero hablar con una persona por una compra` | `human_request` | `escalate` |
 
 ---
 
@@ -114,29 +195,28 @@ curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -d '{"whatsappMessageId":"demo-001","from":"+15550000001","text":"Hola, buenos días"}' | jq .
 ```
 
-Key fields to point out:
+Key fields:
 - `processing.intent` → `"greeting"`
 - `processing.action` → `"reply"`
-- `processing.replyText` → contains your `COMPANY_NAME`
-- `processing.trace.replySource` → `"template"` or `"knowledge_base"`
-- `processing.trace.outboundDelivery`:
-  - `"attempted": true`
-  - `"sent": false`
-  - `"reason": "dry_run"`
-  - `"mode": "dry_run"`
-  - `"wouldSend": { "to": "+15550000001", "text": "…" }`
+- `processing.replyText` → contains `"Kamikaze Bikes"`
+- `processing.trace.replySource` → `"template"`
+- `processing.trace.outboundDelivery.reason` → `"dry_run"`
 
-### 2. Product Interest — intent: `product_interest`, action: `reply`
+### 2. Stock / Availability — intent: `stock_question`, action: `escalate`
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
-  -d '{"whatsappMessageId":"demo-002","from":"+15550000002","text":"¿Qué productos tienen?"}' | jq .
+  -d '{"whatsappMessageId":"demo-002","from":"+15550000002","text":"¿Tienen bicicletas rodado 29 disponibles?"}' | jq .
 ```
 
-Point out: reply includes your `COMPANY_PRODUCT_CATEGORIES`.
+Point out:
+- `processing.intent` → `"stock_question"` — the word "disponibles" triggers stock detection
+- `processing.action` → `"escalate"` — the bot never claims stock availability; this always escalates
+- `processing.escalationReason` → `"stock_confirmation_required"`
+- No `outboundDelivery` in trace — escalation, not reply
 
-### 3. Store Hours — intent: `store_hours`
+### 3. Store Hours — intent: `store_hours`, action: `reply`
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
@@ -144,30 +224,44 @@ curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -d '{"whatsappMessageId":"demo-003","from":"+15550000003","text":"¿Cuáles son los horarios?"}' | jq .
 ```
 
-Point out: reply includes your `COMPANY_HOURS` (from KB or template).
+Point out: reply includes your `COMPANY_HOURS`.
 
-### 4. Store Location
+### 4. Store Location — intent: `store_location`, action: `reply`
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
-  -d '{"whatsappMessageId":"demo-004","from":"+15550000004","text":"¿Dónde están ubicados?"}' | jq .
+  -d '{"whatsappMessageId":"demo-004","from":"+15550000004","text":"¿Dónde queda el local?"}' | jq .
 ```
 
-### 5. Payment Methods
+Point out: reply includes your `COMPANY_LOCATION`.
+
+### 5. Payment Methods — intent: `payment_methods`, action: `reply`
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
-  -d '{"whatsappMessageId":"demo-005","from":"+15550000005","text":"¿Qué medios de pago aceptan?"}' | jq .
+  -d '{"whatsappMessageId":"demo-005","from":"+15550000005","text":"¿Aceptan transferencia o tarjeta?"}' | jq .
 ```
 
-### 6. Complaint → Escalation
+Point out: reply includes your `COMPANY_PAYMENT_METHODS`.
+
+### 6. Shipping — intent: `shipping`, action: `reply`
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
-  -d '{"whatsappMessageId":"demo-006","from":"+15550000006","text":"Estoy muy disconforme con el servicio"}' | jq .
+  -d '{"whatsappMessageId":"demo-006","from":"+15550000006","text":"¿Hacen envíos a Lules o San Miguel?"}' | jq .
+```
+
+Point out: reply includes your `COMPANY_SHIPPING_POLICY`.
+
+### 7. Complaint → Escalation
+
+```bash
+curl -s -X POST http://localhost:3000/api/v1/messages/process \
+  -H "Content-Type: application/json" \
+  -d '{"whatsappMessageId":"demo-007","from":"+15550000007","text":"Tengo una queja, la bici llegó con un problema"}' | jq .
 ```
 
 Point out:
@@ -175,15 +269,21 @@ Point out:
 - `processing.action` → `"escalate"`
 - `processing.escalationReason` → `"customer_expressed_dissatisfaction"`
 - `processing.escalationId` → a UUID (escalation record created)
-- No `outboundDelivery` in trace (escalation, not reply)
+- No `outboundDelivery` in trace — escalation, not reply
 
-### 7. Human Request → Escalation
+### 8. Human Request → Escalation
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
-  -d '{"whatsappMessageId":"demo-007","from":"+15550000007","text":"Quiero hablar con una persona por favor"}' | jq .
+  -d '{"whatsappMessageId":"demo-008","from":"+15550000008","text":"Quiero hablar con una persona por una compra"}' | jq .
 ```
+
+Point out:
+- `processing.intent` → `"human_request"`
+- `processing.action` → `"escalate"`
+- `processing.escalationReason` → `"explicit_human_request"`
+- No `outboundDelivery` in trace
 
 ---
 
@@ -202,7 +302,7 @@ Every response from `POST /api/v1/messages/process` has this structure:
     "intent": "greeting",
     "confidence": 1,
     "action": "reply",
-    "replyText": "¡Hola! Soy el asistente de Mi Empresa. …",
+    "replyText": "¡Hola! Soy el asistente de Kamikaze Bikes. …",
     "outboundMessageId": "uuid",
     "escalationReason": null,
     "escalationId": null,
@@ -222,7 +322,7 @@ Every response from `POST /api/v1/messages/process` has this structure:
         "waMessageId": "dryrun_1712345678000",
         "wouldSend": {
           "to": "+15550000001",
-          "text": "¡Hola! Soy el asistente de Mi Empresa."
+          "text": "¡Hola! Soy el asistente de Kamikaze Bikes."
         }
       }
     }
@@ -246,21 +346,23 @@ Every response from `POST /api/v1/messages/process` has this structure:
 
 ## Demo Talk Track (Business-Friendly)
 
-Present these 5–7 points while walking through the demo:
+Present these points while walking through the demo:
 
-1. **"This is an AI assistant that answers your customers on WhatsApp, automatically."** — The core value: 24/7 automated customer service.
+1. **"This is an automated WhatsApp assistant for bicycle shops."** — Start with the core value: 24/7 customer service without hiring more staff.
 
-2. **"It understands what the customer wants — greeting, product questions, store info, complaints — and picks the right response."** — Show the greeting demo. Point at `intent: "greeting"` and the reply text.
+2. **"It understands what the customer wants — greeting, product questions, store info — and picks the right response."** — Show Demo 1 (greeting). Point at `intent: "greeting"` and the reply text with your shop name.
 
-3. **"All the answers come from your own business data — your hours, your location, your payment methods, your products."** — Show the store hours or payment methods demo. Point out how the reply text mirrors what you configured.
+3. **"When a customer asks about bikes, it responds with your product categories and guides the conversation."** — Show Demo 2 (product interest). Point out how the reply mentions `MTB, ruta, gravel, ciudad, playera`.
 
-4. **"When something needs a human — like a complaint or an explicit request — it escalates automatically instead of giving a canned answer."** — Show the complaint demo. Point at `action: "escalate"` and the escalation ID.
+4. **"All answers come from YOUR data — your hours, your location, your payment methods, your shipping policy."** — Show Demos 3-6. Point out how each reply mirrors exactly what you configured.
 
-5. **"Everything we're seeing now works without any external services — it's the full backend running locally."** — Explain that the `dry_run` mode simulates WhatsApp delivery so we can test everything without a Meta account.
+5. **"When something needs a human — a complaint, a stock question, a price question — it escalates automatically instead of guessing."** — Show Demos 7-8. Point at `action: "escalate"` and explain that the bot never invents stock levels, prices, or handles complaints alone.
 
-6. **"When you're ready to go live on WhatsApp, we enable real delivery by adding Meta credentials — the exact same code, no rewrites needed."** — Explain the path from demo to production.
+6. **"Everything we're seeing now works without Meta or any external service."** — Explain `dry_run` mode. The backend is fully functional; only WhatsApp delivery is simulated.
 
-7. **"The assistant is fully configurable — your business name, categories, hours, location, and responses all live in a simple config file. Change them anytime without touching code."** — Show `.env.example` or mention `COMPANY_NAME`, `COMPANY_PRODUCT_CATEGORIES`, etc.
+7. **"When you're ready to go live, we add Meta credentials — same code, no rewrites."** — Explain the path from demo to production.
+
+8. **"The assistant is fully configurable — your shop name, categories, hours, and policies live in a simple file. Change them anytime."** — Show `.env` or mention `COMPANY_NAME`, `COMPANY_PRODUCT_CATEGORIES`, etc.
 
 ---
 
@@ -268,43 +370,37 @@ Present these 5–7 points while walking through the demo:
 
 ### Demo script says "Backend not reachable"
 
-The preflight check failed. The script prints the exact command you need:
+The preflight check failed. Start the backend:
 ```
 cd backend
-cp .env.demo.example .env   # if you haven't already
+cp .env.demo.example .env
 npm run demo
 ```
-Start the backend in another terminal, wait for `Server listening on port 3000`, then re-run `./scripts/demo-dry-run.sh`.
+
+### Demo script says "Database not ready"
+
+The backend is running but PostgreSQL is unreachable. Check:
+1. `docker compose up -d postgres`
+2. `DATABASE_URL` in `backend/.env` matches the docker-compose credentials
 
 ### Backend won't start — SMTP validation error
 
-```
-Error: Invalid environment variables: SMTP_USER: ...
-```
-
-**Fix**: All SMTP vars are required at startup. Set dummy values for demo:
-
-```bash
-SMTP_USER=demo@example.com
-SMTP_PASS=demo-pass
-ESCALATION_EMAIL_FROM=demo@example.com
-ESCALATION_EMAIL_TO=demo@example.com
-```
+All SMTP vars are required at startup. The demo env already has dummy values. If using a custom `.env`, ensure `SMTP_USER`, `SMTP_PASS`, `ESCALATION_EMAIL_FROM`, and `ESCALATION_EMAIL_TO` are non-empty.
 
 ### Outbound says `"reason": "disabled"` instead of `"dry_run"`
 
-**Fix**: Both flags must be set. Start with:
+Start with the `demo` script (which sets both flags):
 ```bash
-WHATSAPP_OUTBOUND_ENABLED=true WHATSAPP_OUTBOUND_MODE=dry_run npm run demo
+npm run demo
 ```
 
-### Replies show "Kamikaze Bikes" instead of my company name
+### Replies show wrong company name
 
-**Fix**: Set `COMPANY_NAME` in `.env` and restart. Also check `COMPANY_PRODUCT_CATEGORIES`, `COMPANY_HOURS`, etc.
+Set `COMPANY_NAME` in `.env` and restart. Also check `COMPANY_PRODUCT_CATEGORIES`, `COMPANY_HOURS`, etc.
 
 ### Replies are generic templates, not knowledge base data
 
-**Fix**: Run `npm run seed:kb` after setting up your KB data file.
+Run `npm run seed:kb` after setting up your KB data. If `data/kb-verified.json` exists with valid entries, the seed uses only verified data.
 
 ---
 
@@ -323,8 +419,8 @@ To switch from demo to live WhatsApp delivery:
    WHATSAPP_VERIFY_TOKEN=my-custom-token
    WHATSAPP_ENABLED=true
    ```
-3. **Restart** the backend: `npm run demo` (still works — `live` overrides the script default via `.env`).
-4. **Expose webhook**: use ngrok or similar to expose your localhost so Meta can call back.
+3. **Restart** the backend.
+4. **Expose webhook**: use ngrok to expose localhost so Meta can call back.
 5. **Configure Meta webhook URL**: point it to `https://your-ngrok.io/api/v1/security/whatsapp/webhook`.
 
 Full step-by-step: see [WhatsApp Dry-Run Demo](whatsapp-dry-run-demo.md) and the [Deployment Runbook](../deployment/runbook.md#7-live-whatsapp-checklist).
@@ -340,4 +436,4 @@ Full step-by-step: see [WhatsApp Dry-Run Demo](whatsapp-dry-run-demo.md) and the
 
 ---
 
-*Last Updated: 2026-06-10*
+*Last Updated: 2026-06-11*

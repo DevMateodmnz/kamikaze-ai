@@ -210,7 +210,8 @@ send_message() {
 # ── Main ─────────────────────────────────────────────────────
 
 echo "============================================"
-echo " Kamikaze AI — Company MVP Demo (Dry-Run)"
+echo " Kamikaze Bikes — MVP Demo (Dry-Run)"
+echo " Bicycle Shop WhatsApp Assistant"
 echo " Backend: $BACKEND"
 echo " Demo mode: WhatsApp dry_run (no Meta API)"
 echo "============================================"
@@ -227,35 +228,41 @@ send_message "Demo 1: Greeting" \
   "+15550000001" \
   "Hola, buenos días"
 
-# Demo 2: Product / service interest
-send_message "Demo 2: Product Interest" \
+# Demo 2: Product availability — escalates because stock questions
+# must never be answered by a bot (keyword "disponibles" triggers stock_question)
+send_message "Demo 2: Product Availability" \
   "+15550000002" \
-  "¿Tienen notebooks disponibles?"
+  "¿Tienen bicicletas rodado 29 disponibles?"
 
-# Demo 3: Store hours question
+# Demo 3: Store hours (reply from template or KB)
 send_message "Demo 3: Store Hours" \
   "+15550000003" \
   "¿Cuáles son los horarios?"
 
-# Demo 4: Store location question
+# Demo 4: Store location (reply)
 send_message "Demo 4: Store Location" \
   "+15550000004" \
-  "¿Dónde están ubicados?"
+  "¿Dónde queda el local?"
 
-# Demo 5: Payment methods question
+# Demo 5: Payment methods (reply from template or KB)
 send_message "Demo 5: Payment Methods" \
   "+15550000005" \
-  "¿Qué medios de pago aceptan?"
+  "¿Aceptan transferencia o tarjeta?"
 
-# Demo 6: Complaint → Escalation
-send_message "Demo 6: Complaint → Escalation" \
+# Demo 6: Shipping question (reply from template)
+send_message "Demo 6: Shipping" \
   "+15550000006" \
-  "Tengo una queja, el producto llegó mal"
+  "¿Hacen envíos a Lules o San Miguel?"
 
-# Demo 7: Human request → Escalation
-send_message "Demo 7: Human Request" \
+# Demo 7: Complaint → Escalation
+send_message "Demo 7: Complaint → Escalation" \
   "+15550000007" \
-  "Quiero hablar con una persona por favor"
+  "Tengo una queja, la bici llegó con un problema"
+
+# Demo 8: Human request → Escalation
+send_message "Demo 8: Human Request" \
+  "+15550000008" \
+  "Quiero hablar con una persona por una compra"
 
 # ── Show active escalations ──────────────────────────────────
 
