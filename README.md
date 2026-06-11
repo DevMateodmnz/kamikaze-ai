@@ -45,6 +45,7 @@ curl http://localhost:3000/health/ready
 - [Architecture](docs/architecture.md)
 - [Business Profile Setup](docs/deployment/business-profile.md) — configure for another company
 - [Deployment Runbook](docs/deployment/runbook.md) — step-by-step setup and demo guide
+- [Client Demo Playbook](docs/manual-tests/client-demo-playbook.md) — presentación lista para cliente: guion, talk track y recovery
 - [MVP Company Demo](docs/manual-tests/mvp-company-demo.md) — 5-minute demo runbook for presenting to a business
 - [WhatsApp Dry-Run Demo](docs/manual-tests/whatsapp-dry-run-demo.md) — technical dry-run walkthrough
 - [WhatsApp Live Sandbox](docs/manual-tests/whatsapp-outbound-sandbox.md) — Meta validation guide and preflight
