@@ -6,7 +6,7 @@
  * - Integration tests (real DB): full escalation operations — only when DB is available
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi, afterEach } from 'vitest';
 import { randomUUID } from 'crypto';
 import { getBusinessProfile } from '../../src/config/business-profile.js';
 
@@ -14,6 +14,15 @@ import { getBusinessProfile } from '../../src/config/business-profile.js';
 import { prisma } from '../../src/config/database.js';
 import { escalationsService } from '../../src/modules/escalations/service.js';
 import { escalationsRouter } from '../../src/modules/escalations/routes.js';
+
+// ── Mock nodemailer for email notification tests ──────────────────
+const mockSendMail = vi.fn();
+vi.mock('nodemailer', () => ({
+  default: { createTransport: vi.fn(() => ({ sendMail: mockSendMail })) },
+  createTransport: vi.fn(() => ({ sendMail: mockSendMail })),
+}));
+
+import { sendEscalationEmail } from '../../src/modules/escalations/service.js';
 
 // DB availability check
 let dbAvailable = false;
@@ -47,6 +56,158 @@ describe('Escalations Service Interface', () => {
 describe('Escalations Routes', () => {
   it('should export escalationsRouter as FastifyPluginAsync', () => {
     expect(typeof escalationsRouter).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Email notification unit tests (nodemailer mocked)
+// ---------------------------------------------------------------------------
+
+const mockEscalation = {
+  id: 'esc-test-notify-001',
+  conversationId: 'conv-test-001',
+  reason: 'explicit_human_request',
+  reasonDetail: 'human_request',
+  suggestedReply: null,
+  customerPhone: '+5493815551234',
+  customerMessage: 'Quiero hablar con un humano por favor',
+  detectedIntent: 'human_request',
+  intentConfidence: 0.85,
+  classificationSource: 'ai',
+  summary: 'Escalation triggered: explicit_human_request.',
+  status: 'OPEN' as const,
+  notifiedAt: null,
+  resolvedAt: null,
+  resolvedBy: null,
+  resolutionNote: null,
+  createdAt: new Date(),
+};
+
+describe('sendEscalationEmail', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('skips send when ESCALATION_EMAIL_ENABLED=false', async () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'false');
+
+    const result = await sendEscalationEmail(mockEscalation);
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe('email_disabled');
+    expect(mockSendMail).not.toHaveBeenCalled();
+  });
+
+  it('skips send when SMTP_USER is empty', async () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', '');
+    vi.stubEnv('SMTP_PASS', 'pass');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@test.com');
+    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@test.com');
+
+    const result = await sendEscalationEmail(mockEscalation);
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe('config_missing');
+    expect(mockSendMail).not.toHaveBeenCalled();
+  });
+
+  it('skips send when SMTP_PASS is empty', async () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', 'user');
+    vi.stubEnv('SMTP_PASS', '');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@test.com');
+    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@test.com');
+
+    const result = await sendEscalationEmail(mockEscalation);
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe('config_missing');
+  });
+
+  it('skips send when ESCALATION_EMAIL_FROM is empty', async () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', 'user');
+    vi.stubEnv('SMTP_PASS', 'pass');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', '');
+    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@test.com');
+
+    const result = await sendEscalationEmail(mockEscalation);
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe('config_missing');
+  });
+
+  it('skips send when ESCALATION_EMAIL_TO is empty', async () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', 'user');
+    vi.stubEnv('SMTP_PASS', 'pass');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@test.com');
+    vi.stubEnv('ESCALATION_EMAIL_TO', '');
+
+    const result = await sendEscalationEmail(mockEscalation);
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe('config_missing');
+  });
+
+  it('sends email successfully when all config is valid', async () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', 'user@test.com');
+    vi.stubEnv('SMTP_PASS', 'pass123');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@test.com');
+    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@test.com');
+
+    mockSendMail.mockResolvedValueOnce({ messageId: '<msg-id-001>' });
+
+    const result = await sendEscalationEmail(mockEscalation);
+    expect(result.sent).toBe(true);
+    expect(result.reason).toBe('sent');
+    expect(result.messageId).toBe('<msg-id-001>');
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+
+    const mailOpts = mockSendMail.mock.calls[0][0];
+    expect(mailOpts.subject).toContain('explicit_human_request');
+    expect(mailOpts.subject).toContain('human_request');
+    expect(mailOpts.html).toContain('Quiero hablar con un humano por favor');
+    expect(mailOpts.html).toContain('esc-test-notify-001');
+    expect(mailOpts.html).toContain('+5493815551234');
+    expect(mailOpts.html).toContain('85%');
+    expect(mailOpts.html).toContain('ai');
+    expect(mailOpts.from).toBe('from@test.com');
+    expect(mailOpts.to).toBe('to@test.com');
+  });
+
+  it('returns send_failed when nodemailer throws', async () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', 'user@test.com');
+    vi.stubEnv('SMTP_PASS', 'pass123');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@test.com');
+    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@test.com');
+
+    mockSendMail.mockRejectedValueOnce(new Error('SMTP connection refused'));
+
+    const result = await sendEscalationEmail(mockEscalation);
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe('send_failed');
+  });
+
+  it('email body includes enriched PR-011 context', async () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', 'user@test.com');
+    vi.stubEnv('SMTP_PASS', 'pass123');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@test.com');
+    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@test.com');
+
+    mockSendMail.mockResolvedValueOnce({ messageId: '<msg-002>' });
+
+    await sendEscalationEmail(mockEscalation);
+    const mailOpts = mockSendMail.mock.calls[0][0];
+
+    expect(mailOpts.html).toContain('Escalation Alert');
+    expect(mailOpts.html).toContain('Escalation ID');
+    expect(mailOpts.html).toContain('Customer message');
+    expect(mailOpts.html).toContain('Customer phone');
+    expect(mailOpts.html).toContain('Detected intent');
+    expect(mailOpts.html).toContain('Summary');
+    // HTML escaping prevents injection
+    expect(mailOpts.html).not.toContain('<script>');
   });
 });
 

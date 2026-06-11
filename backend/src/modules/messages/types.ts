@@ -63,6 +63,8 @@ export interface MessageProcessingTrace {
   confidence?: number;
   /** Outbound WhatsApp delivery metadata. Present only when a customer reply was generated. */
   outboundDelivery?: OutboundDeliveryTrace;
+  /** Email notification metadata. Present only when escalation was triggered and email was attempted. */
+  emailNotification?: EmailNotificationTrace;
 }
 
 /** Safe outbound delivery metadata. Never includes tokens or raw provider payloads. */
@@ -79,4 +81,14 @@ export interface OutboundDeliveryTrace {
   waMessageId?: string;
   /** What would have been sent (dry_run mode only). */
   wouldSend?: { to: string; text: string };
+}
+
+/** Email notification metadata for escalation email (PR-012). */
+export interface EmailNotificationTrace {
+  /** Whether an email was attempted (false when disabled or config missing). */
+  attempted: boolean;
+  /** Whether the SMTP server accepted the email. */
+  sent: boolean;
+  /** Reason for the notification outcome. */
+  reason: 'sent' | 'email_disabled' | 'config_missing' | 'send_failed';
 }

@@ -49,6 +49,7 @@ export interface Env {
   COMPANY_PRODUCT_CATEGORIES: string;
 
   // Human Escalation (Email / SMTP)
+  ESCALATION_EMAIL_ENABLED: boolean;
   SMTP_HOST: string;
   SMTP_PORT: number;
   SMTP_SECURE: boolean;

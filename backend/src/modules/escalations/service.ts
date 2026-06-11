@@ -2,11 +2,13 @@
  * Escalations Service
  *
  * Handles escalation record creation, retrieval, status updates, and resolution.
- * Uses Prisma for persistence. No external notifications yet.
+ * Uses Prisma for persistence. Email notification via nodemailer (PR-012).
  */
 
 import type { EscalationStatus } from '@prisma/client';
+import { createTransport } from 'nodemailer';
 import prisma from '../../config/database.js';
+import { validateEnv } from '../../config/env.js';
 import type { EscalationReason, ClassificationSource } from './types.js';
 import { AppError } from '../../utils/app-error.js';
 
@@ -77,6 +79,111 @@ export async function createEscalation(input: CreateEscalationInput): Promise<Es
   });
 
   return mapPrismaToResponse(escalation);
+}
+
+// ============================================
+// Email Notification (PR-012)
+// ============================================
+
+export interface EmailNotificationResult {
+  /** Whether the email was accepted by the SMTP server. */
+  sent: boolean;
+  /** Reason for the outcome. */
+  reason: 'sent' | 'email_disabled' | 'config_missing' | 'send_failed';
+  /** SMTP message ID on success. */
+  messageId?: string;
+}
+
+/**
+ * Attempt to notify the operator by email about a new escalation.
+ *
+ * Never throws — escalation creation must not be blocked by email failure.
+ * Returns a structured result so callers can log or trace the outcome.
+ *
+ * Gating (checked in order):
+ * 1. ESCALATION_EMAIL_ENABLED  → false: skip with reason 'email_disabled'
+ * 2. SMTP credentials present   → missing: skip with reason 'config_missing'
+ * 3. Send via nodemailer        → failure: return 'send_failed'
+ */
+export async function sendEscalationEmail(
+  escalation: EscalationResponse
+): Promise<EmailNotificationResult> {
+  const env = validateEnv();
+
+  // 1. Feature gate
+  if (!env.ESCALATION_EMAIL_ENABLED) {
+    return { sent: false, reason: 'email_disabled' };
+  }
+
+  // 2. Credential check
+  if (!env.SMTP_USER || !env.SMTP_PASS || !env.ESCALATION_EMAIL_FROM || !env.ESCALATION_EMAIL_TO) {
+    return { sent: false, reason: 'config_missing' };
+  }
+
+  // 3. Build email and attempt send
+  const subject = `[Kamikaze AI] Escalation: ${escalation.reason} — ${escalation.detectedIntent || 'unknown'}`;
+  const bodyHtml = buildEscalationEmailHtml(escalation);
+
+  const transporter = createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_SECURE,
+    auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+  });
+
+  try {
+    const info = await transporter.sendMail({
+      from: env.ESCALATION_EMAIL_FROM,
+      to: env.ESCALATION_EMAIL_TO,
+      subject,
+      html: bodyHtml,
+    });
+    return { sent: true, reason: 'sent', messageId: info.messageId };
+  } catch {
+    return { sent: false, reason: 'send_failed' };
+  }
+}
+
+/**
+ * Build a human-readable HTML email body from escalation context.
+ * Includes enriched PR-011 fields so the operator can act immediately.
+ */
+function buildEscalationEmailHtml(escalation: EscalationResponse): string {
+  const confidenceStr = escalation.intentConfidence != null
+    ? `${(escalation.intentConfidence * 100).toFixed(0)}%`
+    : 'n/a';
+
+  // Only include summary paragraph when customer message exists (manual escalations may lack it)
+  const messageBlock = escalation.customerMessage
+    ? `<p><strong>Customer message:</strong><br/><em>${escapeHtml(escalation.customerMessage)}</em></p>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html><body style="font-family: sans-serif; max-width: 600px;">
+<h2>Kamikaze AI — Escalation Alert</h2>
+<p>A new escalation requires your attention.</p>
+<hr/>
+<table>
+<tr><td><strong>Escalation ID</strong></td><td>${escapeHtml(escalation.id)}</td></tr>
+<tr><td><strong>Reason</strong></td><td>${escapeHtml(escalation.reason)}</td></tr>
+<tr><td><strong>Detected intent</strong></td><td>${escapeHtml(escalation.detectedIntent || 'n/a')}</td></tr>
+<tr><td><strong>Confidence</strong></td><td>${confidenceStr} (${escapeHtml(escalation.classificationSource || 'n/a')})</td></tr>
+<tr><td><strong>Customer phone</strong></td><td>${escapeHtml(escalation.customerPhone || 'n/a')}</td></tr>
+<tr><td><strong>Summary</strong></td><td>${escapeHtml(escalation.summary || 'n/a')}</td></tr>
+</table>
+${messageBlock}
+<hr/>
+<p style="color: #666; font-size: 0.9em;">This is an automated notification from Kamikaze AI. Reply to the customer directly — do not reply to this email.</p>
+</body></html>`;
+}
+
+/** Minimal HTML escaping to prevent injection in email bodies. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ============================================
@@ -276,6 +383,7 @@ function mapPrismaToResponse(escalation: {
 // Export as singleton service object
 export const escalationsService = {
   createEscalation,
+  sendEscalationEmail,
   getEscalationById,
   listEscalations,
   listEscalationsByConversation,

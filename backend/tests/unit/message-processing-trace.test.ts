@@ -26,6 +26,13 @@ const mockWhatsAppSender = {
 };
 vi.mock('../../src/modules/messages/whatsapp-sender.js', () => mockWhatsAppSender);
 
+// Mock nodemailer — escalation email notification must not send real emails
+const mockSendMail = vi.fn();
+vi.mock('nodemailer', () => ({
+  default: { createTransport: vi.fn(() => ({ sendMail: mockSendMail })) },
+  createTransport: vi.fn(() => ({ sendMail: mockSendMail })),
+}));
+
 import { aiGatewayRouter } from '../../src/modules/ai-gateway/router.js';
 
 // ---------------------------------------------------------------------------
@@ -623,6 +630,147 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(escalation!.summary).toContain('explicit_human_request');
   });
 
+  // ── Email notification trace (PR-012) ────────────────────────────
+
+  it('escalation trace includes emailNotification with reason=email_disabled when flag is off', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'false');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'human_request',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812380${testTimestamp}`,
+      text: 'Quiero hablar con un humano',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.replySource).toBe('escalation');
+    expect(trace.emailNotification).toBeDefined();
+    expect(trace.emailNotification!.attempted).toBe(false);
+    expect(trace.emailNotification!.sent).toBe(false);
+    expect(trace.emailNotification!.reason).toBe('email_disabled');
+  });
+
+  it('escalation trace includes emailNotification with reason=config_missing when SMTP incomplete', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', '');
+    vi.stubEnv('SMTP_PASS', '');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'complaint',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812381${testTimestamp}`,
+      text: 'Estoy enojado con el servicio',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.replySource).toBe('escalation');
+    expect(trace.emailNotification).toBeDefined();
+    expect(trace.emailNotification!.attempted).toBe(false);
+    expect(trace.emailNotification!.sent).toBe(false);
+    expect(trace.emailNotification!.reason).toBe('config_missing');
+  });
+
+  it('escalation trace includes emailNotification with reason=sent when SMTP succeeds', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', 'user@test.com');
+    vi.stubEnv('SMTP_PASS', 'pass123');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@test.com');
+    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@test.com');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockSendMail.mockResolvedValueOnce({ messageId: '<test-msg-id>' });
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'human_request',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812382${testTimestamp}`,
+      text: 'necesito hablar con alguien urgente',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.replySource).toBe('escalation');
+    expect(trace.emailNotification).toBeDefined();
+    expect(trace.emailNotification!.attempted).toBe(true);
+    expect(trace.emailNotification!.sent).toBe(true);
+    expect(trace.emailNotification!.reason).toBe('sent');
+
+    // Verify escalation was marked as notified
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation!.status).toBe('NOTIFIED');
+    expect(escalation!.notifiedAt).not.toBeNull();
+  });
+
+  it('email send failure does not break escalation processing', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_USER', 'user@test.com');
+    vi.stubEnv('SMTP_PASS', 'pass123');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@test.com');
+    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@test.com');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockSendMail.mockRejectedValueOnce(new Error('Connection refused'));
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'complaint',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812383${testTimestamp}`,
+      text: 'Estoy muy disconforme con la atención',
+    });
+
+    // Processing still succeeds
+    expect(result.success).toBe(true);
+    expect(result.processing!.escalationId).toBeTruthy();
+
+    const trace = result.processing!.trace!;
+    expect(trace.emailNotification).toBeDefined();
+    expect(trace.emailNotification!.attempted).toBe(true);
+    expect(trace.emailNotification!.sent).toBe(false);
+    expect(trace.emailNotification!.reason).toBe('send_failed');
+
+    // Escalation record still exists with enriched context
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation).not.toBeNull();
+    expect(escalation!.status).toBe('OPEN'); // not NOTIFIED — send failed
+  });
+
   // ── AI reply path (mocked provider) ──────────────────────────────
 
   it('returns trace with replySource="ai", aiIntentUsed=true, aiReplyUsed=true when AI generates reply', async () => {
@@ -925,6 +1073,9 @@ describe('processInboundMessage — trace integration tests', () => {
     // Trace should NOT have outboundDelivery for escalation
     const trace = result.processing!.trace!;
     expect(trace.outboundDelivery).toBeUndefined();
+    // Escalation trace includes email notification metadata
+    expect(trace.emailNotification).toBeDefined();
+    expect(trace.emailNotification!.reason).toBe('email_disabled');
 
     vi.unstubAllEnvs();
   });

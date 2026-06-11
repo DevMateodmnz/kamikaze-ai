@@ -55,13 +55,16 @@ const envSchema = z.object({
   COMPANY_PRODUCT_CATEGORIES: z.string().default('MTB, ruta, gravel, ciudad'),
 
   // Human Escalation (Email / SMTP)
+  // ESCALATION_EMAIL_ENABLED gates email notification. Default false
+  // (safe demo mode). When true, all SMTP vars must be configured.
+  ESCALATION_EMAIL_ENABLED: envBoolean.default(false),
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
   SMTP_SECURE: envBoolean.default(false),
-  SMTP_USER: z.string().min(1, 'SMTP_USER is required for escalation email'),
-  SMTP_PASS: z.string().min(1, 'SMTP_PASS is required for escalation email'),
-  ESCALATION_EMAIL_FROM: z.string().min(1, 'ESCALATION_EMAIL_FROM is required'),
-  ESCALATION_EMAIL_TO: z.string().min(1, 'ESCALATION_EMAIL_TO is required'),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  ESCALATION_EMAIL_FROM: z.string().default(''),
+  ESCALATION_EMAIL_TO: z.string().default(''),
 
   // CORS
   CORS_ORIGINS: z.string().optional(),
@@ -132,6 +135,7 @@ function buildRawEnv() {
     SMTP_SECURE: process.env.SMTP_SECURE,
     SMTP_USER: process.env.SMTP_USER,
     SMTP_PASS: process.env.SMTP_PASS,
+    ESCALATION_EMAIL_ENABLED: process.env.ESCALATION_EMAIL_ENABLED,
     ESCALATION_EMAIL_FROM: process.env.ESCALATION_EMAIL_FROM,
     ESCALATION_EMAIL_TO: process.env.ESCALATION_EMAIL_TO,
     CORS_ORIGINS: process.env.CORS_ORIGINS,

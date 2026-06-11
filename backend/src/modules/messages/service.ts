@@ -329,6 +329,8 @@ export async function processInboundMessage(
   let aiReplyUsed = false;
   // Outbound delivery trace — only set when a customer reply is sent
   let outboundDelivery: MessageProcessingTrace['outboundDelivery'];
+  // Email notification trace — only set when escalation is triggered
+  let outboundEmailNotification: MessageProcessingTrace['emailNotification'];
 
   // If action is reply, select the reply text in priority order:
   // 1. AI-generated reply (only if AI_REPLIES_ENABLED=true + safe intent)
@@ -421,6 +423,18 @@ export async function processInboundMessage(
     });
     escalationId = escalation.id;
     replySource = 'escalation';
+
+    // Attempt email notification (never blocks escalation creation)
+    const emailResult = await escalationsService.sendEscalationEmail(escalation);
+    if (emailResult.sent) {
+      await escalationsService.markNotified(escalation.id);
+    }
+    // Capture notification outcome for trace
+    outboundEmailNotification = {
+      attempted: emailResult.reason !== 'email_disabled' && emailResult.reason !== 'config_missing',
+      sent: emailResult.sent,
+      reason: emailResult.reason,
+    };
   }
 
   const trace: MessageProcessingTrace = {
@@ -433,6 +447,7 @@ export async function processInboundMessage(
     confidence: detection.confidence,
     ...(knowledgeBaseEntryId && { knowledgeBaseEntryId }),
     ...(outboundDelivery && { outboundDelivery }),
+    ...(outboundEmailNotification && { emailNotification: outboundEmailNotification }),
   };
 
   return {

@@ -13,23 +13,43 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 // Dynamic import so vi.stubEnv() is applied before validateEnv runs
 const { validateEnv } = await import('../../src/config/env.js');
 
-describe('SMTP env vars — defaults', () => {
+describe('SMTP env vars — defaults (optional in schema)', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
   it('uses defaults for SMTP_HOST, SMTP_PORT, SMTP_SECURE', () => {
-    // Required vars must be set to pass validation
-    vi.stubEnv('SMTP_USER', 'test@example.com');
-    vi.stubEnv('SMTP_PASS', 'test-pass');
-    vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@example.com');
-    vi.stubEnv('ESCALATION_EMAIL_TO', 'to@example.com');
+    // setup.ts sets SMTP_* vars — clear them to test defaults
+    vi.stubEnv('SMTP_USER', '');
+    vi.stubEnv('SMTP_PASS', '');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', '');
+    vi.stubEnv('ESCALATION_EMAIL_TO', '');
 
     const env = validateEnv();
 
     expect(env.SMTP_HOST).toBe('smtp.gmail.com');
     expect(env.SMTP_PORT).toBe(587);
     expect(env.SMTP_SECURE).toBe(false);
+    expect(env.SMTP_USER).toBe('');
+    expect(env.SMTP_PASS).toBe('');
+    expect(env.ESCALATION_EMAIL_FROM).toBe('');
+    expect(env.ESCALATION_EMAIL_TO).toBe('');
+  });
+
+  it('SMTP vars are optional — no throw when absent', () => {
+    // Clear SMTP vars that setup.ts may have set
+    vi.stubEnv('SMTP_USER', '');
+    vi.stubEnv('SMTP_PASS', '');
+    vi.stubEnv('ESCALATION_EMAIL_FROM', '');
+    vi.stubEnv('ESCALATION_EMAIL_TO', '');
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
+    delete process.env.ESCALATION_EMAIL_FROM;
+    delete process.env.ESCALATION_EMAIL_TO;
+
+    const env = validateEnv();
+    expect(env.SMTP_USER).toBe('');
+    expect(env.ESCALATION_EMAIL_ENABLED).toBe(false);
   });
 
   it('SMTP_PORT is a number, not a string', () => {
@@ -148,6 +168,34 @@ describe('SMTP env vars — custom values', () => {
   });
 });
 
+describe('ESCALATION_EMAIL_ENABLED flag', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('defaults to false (safe demo mode)', () => {
+    const env = validateEnv();
+    expect(env.ESCALATION_EMAIL_ENABLED).toBe(false);
+  });
+
+  it('true when env var is "true"', () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'true');
+    const env = validateEnv();
+    expect(env.ESCALATION_EMAIL_ENABLED).toBe(true);
+  });
+
+  it('false for "false", "0", and absent', () => {
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', 'false');
+    expect(validateEnv().ESCALATION_EMAIL_ENABLED).toBe(false);
+
+    vi.stubEnv('ESCALATION_EMAIL_ENABLED', '0');
+    expect(validateEnv().ESCALATION_EMAIL_ENABLED).toBe(false);
+
+    delete process.env.ESCALATION_EMAIL_ENABLED;
+    expect(validateEnv().ESCALATION_EMAIL_ENABLED).toBe(false);
+  });
+});
+
 describe('SMTP env vars — validation errors (port)', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -184,80 +232,88 @@ describe('SMTP env vars — validation errors (port)', () => {
   });
 });
 
-describe('SMTP env vars — missing required credentials', () => {
+describe('SMTP env vars — missing credentials (now optional)', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('throws when SMTP_USER is missing', () => {
+  it('defaults SMTP_USER to empty string when absent', () => {
     vi.stubEnv('SMTP_PASS', 'test-pass');
     vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@example.com');
     vi.stubEnv('ESCALATION_EMAIL_TO', 'to@example.com');
-    delete process.env.SMTP_USER; // simulate completely absent
+    delete process.env.SMTP_USER;
 
-    expect(() => validateEnv()).toThrow(/SMTP_USER/);
+    const env = validateEnv();
+    expect(env.SMTP_USER).toBe('');
   });
 
-  it('throws when SMTP_USER is empty', () => {
+  it('defaults SMTP_USER to empty string when empty', () => {
     vi.stubEnv('SMTP_USER', '');
     vi.stubEnv('SMTP_PASS', 'test-pass');
     vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@example.com');
     vi.stubEnv('ESCALATION_EMAIL_TO', 'to@example.com');
 
-    expect(() => validateEnv()).toThrow(/SMTP_USER/);
+    const env = validateEnv();
+    expect(env.SMTP_USER).toBe('');
   });
 
-  it('throws when SMTP_PASS is missing', () => {
+  it('defaults SMTP_PASS to empty string when absent', () => {
     vi.stubEnv('SMTP_USER', 'test@example.com');
     vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@example.com');
     vi.stubEnv('ESCALATION_EMAIL_TO', 'to@example.com');
     delete process.env.SMTP_PASS;
 
-    expect(() => validateEnv()).toThrow(/SMTP_PASS/);
+    const env = validateEnv();
+    expect(env.SMTP_PASS).toBe('');
   });
 
-  it('throws when SMTP_PASS is empty', () => {
+  it('defaults SMTP_PASS to empty string when empty', () => {
     vi.stubEnv('SMTP_USER', 'test@example.com');
     vi.stubEnv('SMTP_PASS', '');
     vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@example.com');
     vi.stubEnv('ESCALATION_EMAIL_TO', 'to@example.com');
 
-    expect(() => validateEnv()).toThrow(/SMTP_PASS/);
+    const env = validateEnv();
+    expect(env.SMTP_PASS).toBe('');
   });
 
-  it('throws when ESCALATION_EMAIL_FROM is missing', () => {
+  it('defaults ESCALATION_EMAIL_FROM to empty string when absent', () => {
     vi.stubEnv('SMTP_USER', 'test@example.com');
     vi.stubEnv('SMTP_PASS', 'test-pass');
     vi.stubEnv('ESCALATION_EMAIL_TO', 'to@example.com');
     delete process.env.ESCALATION_EMAIL_FROM;
 
-    expect(() => validateEnv()).toThrow(/ESCALATION_EMAIL_FROM/);
+    const env = validateEnv();
+    expect(env.ESCALATION_EMAIL_FROM).toBe('');
   });
 
-  it('throws when ESCALATION_EMAIL_FROM is empty', () => {
+  it('defaults ESCALATION_EMAIL_FROM to empty string when empty', () => {
     vi.stubEnv('SMTP_USER', 'test@example.com');
     vi.stubEnv('SMTP_PASS', 'test-pass');
     vi.stubEnv('ESCALATION_EMAIL_FROM', '');
     vi.stubEnv('ESCALATION_EMAIL_TO', 'to@example.com');
 
-    expect(() => validateEnv()).toThrow(/ESCALATION_EMAIL_FROM/);
+    const env = validateEnv();
+    expect(env.ESCALATION_EMAIL_FROM).toBe('');
   });
 
-  it('throws when ESCALATION_EMAIL_TO is missing', () => {
+  it('defaults ESCALATION_EMAIL_TO to empty string when absent', () => {
     vi.stubEnv('SMTP_USER', 'test@example.com');
     vi.stubEnv('SMTP_PASS', 'test-pass');
     vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@example.com');
     delete process.env.ESCALATION_EMAIL_TO;
 
-    expect(() => validateEnv()).toThrow(/ESCALATION_EMAIL_TO/);
+    const env = validateEnv();
+    expect(env.ESCALATION_EMAIL_TO).toBe('');
   });
 
-  it('throws when ESCALATION_EMAIL_TO is empty', () => {
+  it('defaults ESCALATION_EMAIL_TO to empty string when empty', () => {
     vi.stubEnv('SMTP_USER', 'test@example.com');
     vi.stubEnv('SMTP_PASS', 'test-pass');
     vi.stubEnv('ESCALATION_EMAIL_FROM', 'from@example.com');
     vi.stubEnv('ESCALATION_EMAIL_TO', '');
 
-    expect(() => validateEnv()).toThrow(/ESCALATION_EMAIL_TO/);
+    const env = validateEnv();
+    expect(env.ESCALATION_EMAIL_TO).toBe('');
   });
 });
