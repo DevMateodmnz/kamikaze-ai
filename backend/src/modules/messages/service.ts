@@ -389,7 +389,7 @@ export async function processInboundMessage(
       ? { originalMessage: discoveryOriginalMessage }
       : null;
 
-    if (decision.action === 'escalate') {
+    if (decision.action === 'escalate' && detection.intent !== 'unknown') {
       // Escalation intent during discovery → escalate normally,
       // discovery context added to summary. Clear discovery state.
       void conversationsService.updateConversationContext(result.conversation.id, {

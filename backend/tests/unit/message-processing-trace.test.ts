@@ -1233,6 +1233,134 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(escalation!.suggestedReply).toContain('bicis urbanas');
   });
 
+  // ── Unknown intent escalation (PR-015A) ──────────────────────────
+
+  it('unknown intent outside discovery creates escalation', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'false');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812500${shortPhoneId}`;
+    const result = await processInboundMessage({
+      from: testPhone,
+      text: 'xzyyzz 1234 fdsfsd', // gibberish → unknown
+    });
+
+    expect(result.processing!.action).toBe('escalate');
+    expect(result.processing!.escalationReason).toBe('unknown');
+
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation).not.toBeNull();
+    expect(escalation!.reason).toBe('unknown');
+    expect(escalation!.detectedIntent).toBe('unknown');
+    expect(escalation!.customerMessage).toBe('xzyyzz 1234 fdsfsd');
+    expect(escalation!.customerPhone).toBe(testPhone);
+    expect(escalation!.summary).toContain('unknown');
+  });
+
+  it('unknown intent escalation includes email notification trace', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'false');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812501${shortPhoneId}`,
+      text: 'blah blah nothing matches',
+    });
+
+    const trace = result.processing!.trace!;
+    expect(trace.replySource).toBe('escalation');
+    expect(trace.emailNotification).toBeDefined();
+    expect(trace.emailNotification!.reason).toBe('email_disabled');
+  });
+
+  it('unknown intent with AI suggestion stores suggestedReply when enabled', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'true');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+    mockedRouter.summarize.mockResolvedValueOnce({
+      summary: {
+        summary: 'Unknown message',
+        keyTopics: [],
+        customerSentiment: 'neutral' as const,
+        escalationReasons: ['unknown'],
+        suggestedReply: 'Hola, no entendí bien tu consulta. ¿Me podrías dar más detalles?',
+      },
+      latencyMs: 100,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const result = await processInboundMessage({
+      from: `+5493812502${shortPhoneId}`,
+      text: 'no entiendo nada de esto',
+    });
+
+    expect(result.processing!.trace.aiSuggestionUsed).toBe(true);
+
+    const escalation = await escalationsService.getEscalationById(
+      result.processing!.escalationId!
+    );
+    expect(escalation!.suggestedReply).toBe(
+      'Hola, no entendí bien tu consulta. ¿Me podrías dar más detalles?'
+    );
+  });
+
+  it('unknown during discovery still escalates as product_discovery', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_CLASSIFICATION_ENABLED', 'false');
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812503${shortPhoneId}`;
+
+    // Step 1: enter discovery
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+    await processInboundMessage({ from: testPhone, text: 'Me interesa una bici' });
+
+    // Step 2: gibberish during discovery
+    mockedRouter.classifyIntent.mockRejectedValueOnce(new Error('offline'));
+    const step2 = await processInboundMessage({
+      from: testPhone,
+      text: 'asdfghjkl',
+    });
+
+    // Should be product_discovery, NOT generic unknown
+    expect(step2.processing!.action).toBe('escalate');
+    expect(step2.processing!.escalationReason).toBe('product_discovery');
+
+    const escalation = await escalationsService.getEscalationById(
+      step2.processing!.escalationId!
+    );
+    expect(escalation!.reason).toBe('product_discovery');
+    expect(escalation!.customerMessage).toContain('Me interesa una bici');
+    expect(escalation!.customerMessage).toContain('asdfghjkl');
+  });
+
   // ── WhatsApp outbound delivery integration ────────────────────────
 
   it('attemptWhatsAppDelivery is called after outbound message storage', async () => {

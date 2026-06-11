@@ -67,9 +67,9 @@ function buildReplyTemplates(
     complaint: 'MSGR_ESCALATE_COMPLAINT',
     human_request: 'MSGR_ESCALATE_HUMAN',
 
-    // ── Safe fallback ─────────────────────────────────────────
+    // ── Unknown handoff ───────────────────────────────────────
     unknown:
-      'Gracias por tu mensaje. Un asesor te va a responder a la brevedad. ¡Saludos!',
+      'No quiero darte información incorrecta. Te paso con un asesor para que pueda ayudarte mejor. ¡Gracias por tu paciencia!',
   };
 }
 
@@ -88,7 +88,7 @@ const ESCALATION_REASONS: Record<Intent, string> = {
   store_location: 'not_used',
   payment_methods: 'not_used',
   shipping: 'not_used',
-  unknown: 'not_used',
+  unknown: 'unknown',
 };
 
 /**
@@ -120,6 +120,7 @@ export function makeDecision(
     'discount_request',
     'warranty_or_return',
     'complaint',
+    'unknown',
   ];
 
   const requiresEscalation = escalateIntents.includes(intent);
@@ -146,7 +147,6 @@ export function makeDecision(
     'store_location',
     'payment_methods',
     'shipping',
-    'unknown',
   ];
 
   if (safeReplyIntents.includes(intent)) {

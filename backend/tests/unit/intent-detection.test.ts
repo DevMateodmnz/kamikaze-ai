@@ -255,6 +255,7 @@ describe('Decision Engine', () => {
       'discount_request',
       'warranty_or_return',
       'complaint',
+      'unknown',
     ];
 
     for (const intent of escalateIntents) {
@@ -278,7 +279,6 @@ describe('Decision Engine', () => {
       'store_location',
       'payment_methods',
       'shipping',
-      'unknown',
     ];
 
     for (const intent of replyIntents) {
@@ -310,10 +310,11 @@ describe('Decision Engine', () => {
       expect(decision.replyText).not.toContain('altura o talle');
     });
 
-    it('unknown reply should NOT invent stock or prices', () => {
+    it('unknown escalation should escalate with reason=unknown', () => {
       const decision = makeDecision('unknown', 0.5, testProfile);
-      const text = decision.replyText ?? '';
-      expect(text).not.toMatch(/stock|precio|descuento|oferta/i);
+      expect(decision.action).toBe('escalate');
+      expect(decision.escalationReason).toBe('unknown');
+      expect(decision.replyText).toBeNull();
     });
   });
 
