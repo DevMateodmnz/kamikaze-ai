@@ -152,6 +152,7 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://kamikaze:kamikaze_
 import { prisma } from '../../src/config/database.js';
 import { knowledgeBaseService } from '../../src/modules/knowledge-base/service.js';
 import { escalationsService } from '../../src/modules/escalations/service.js';
+import { conversationsService } from '../../src/modules/conversations/service.js';
 
 let dbAvailable = false;
 
@@ -871,6 +872,208 @@ describe('processInboundMessage — trace integration tests', () => {
   });
 
   // ── WhatsApp outbound delivery integration ────────────────────────
+
+  // ── Product discovery flow (PR-013) ──────────────────────────────
+
+  it('product_interest reply saves discovery state in conversation context', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812400${testTimestamp}`;
+    const result = await processInboundMessage({
+      from: testPhone,
+      text: '¿Tienen bicicletas rodado 29?',
+    });
+
+    // Reply sent, not escalated
+    expect(result.processing!.action).toBe('reply');
+    expect(result.processing!.trace.replySource).toBe('template');
+
+    // Discovery state saved
+    const ctx = await conversationsService.getConversationContext(result.conversationId);
+    expect(ctx).not.toBeNull();
+    expect(ctx!.discoveryState).toBe('AWAITING_PRODUCT_DETAILS');
+    expect(ctx!.discoveryOriginalMessage).toBe('¿Tienen bicicletas rodado 29?');
+  });
+
+  it('follow-up unknown message during discovery escalates as product_discovery', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    // Step 1: send product_interest → enters discovery state
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812401${testTimestamp}`;
+    const step1 = await processInboundMessage({
+      from: testPhone,
+      text: '¿Tienen MTB para montaña?',
+    });
+    expect(step1.processing!.action).toBe('reply');
+
+    // Step 2: send follow-up that classifies as unknown
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'general',
+      confidence: 0.3,
+    });
+
+    const step2 = await processInboundMessage({
+      from: testPhone,
+      text: 'La quiero para montaña, rodado 29, presupuesto 300 mil',
+    });
+
+    expect(step2.processing!.action).toBe('escalate');
+    expect(step2.processing!.escalationReason).toBe('product_discovery');
+
+    // Escalation record includes discovery context
+    const escalation = await escalationsService.getEscalationById(
+      step2.processing!.escalationId!
+    );
+    expect(escalation).not.toBeNull();
+    expect(escalation!.reason).toBe('product_discovery');
+    expect(escalation!.customerMessage).toContain('¿Tienen MTB para montaña?');
+    expect(escalation!.customerMessage).toContain('La quiero para montaña');
+    expect(escalation!.summary).toContain('Product discovery handoff');
+    expect(escalation!.summary).toContain('¿Tienen MTB para montaña?');
+    expect(escalation!.summary).toContain('Recommended action');
+
+    // Discovery state cleared after escalation
+    const ctx = await conversationsService.getConversationContext(step2.conversationId);
+    expect(ctx?.discoveryState || null).toBeNull();
+  });
+
+  it('human_request during discovery escalates immediately with discovery context', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    // Step 1: enter discovery state
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812402${testTimestamp}`;
+    await processInboundMessage({
+      from: testPhone,
+      text: '¿Tienen bicis?',
+    });
+
+    // Step 2: explicit human request during discovery
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'human_request',
+      confidence: 0.95,
+    });
+
+    const step2 = await processInboundMessage({
+      from: testPhone,
+      text: 'quiero hablar con un humano urgente',
+    });
+
+    expect(step2.processing!.action).toBe('escalate');
+    expect(step2.processing!.escalationReason).toBe('explicit_human_request');
+
+    // Escalation includes discovery context in summary
+    const escalation = await escalationsService.getEscalationById(
+      step2.processing!.escalationId!
+    );
+    expect(escalation!.summary).toContain('Previous product interest');
+    expect(escalation!.summary).toContain('¿Tienen bicis?');
+
+    // Discovery state cleared
+    const ctx = await conversationsService.getConversationContext(step2.conversationId);
+    expect(ctx?.discoveryState || null).toBeNull();
+  });
+
+  it('store_hours during discovery replies normally and clears discovery', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    // Step 1: enter discovery state
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812403${testTimestamp}`;
+    await processInboundMessage({
+      from: testPhone,
+      text: 'Me interesa una bici',
+    });
+
+    // Step 2: customer changes topic to store hours
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'store_hours',
+      confidence: 0.8,
+    });
+
+    const step2 = await processInboundMessage({
+      from: testPhone,
+      text: '¿cuáles son los horarios?',
+    });
+
+    // Normal reply, not escalated
+    expect(step2.processing!.action).toBe('reply');
+    expect(step2.processing!.trace.replySource).toBe('template');
+
+    // Discovery state cleared (customer changed topic)
+    const ctx = await conversationsService.getConversationContext(step2.conversationId);
+    expect(ctx?.discoveryState || null).toBeNull();
+  });
+
+  it('second product_interest during discovery triggers discovery escalation', async () => {
+    if (!dbAvailable) return;
+    vi.stubEnv('AI_REPLIES_ENABLED', 'false');
+
+    const { processInboundMessage } = await import(
+      '../../src/modules/messages/service.js'
+    );
+
+    const testPhone = `+5493812404${testTimestamp}`;
+
+    // Step 1: enter discovery
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.9,
+    });
+    await processInboundMessage({ from: testPhone, text: 'Quiero una bici' });
+
+    // Step 2: customer re-asks about product (still in discovery)
+    mockedRouter.classifyIntent.mockResolvedValueOnce({
+      intent: 'product_interest',
+      confidence: 0.85,
+    });
+    const step2 = await processInboundMessage({
+      from: testPhone,
+      text: '¿y también tienen playeras?',
+    });
+
+    // Escalated as product_discovery (not another reply)
+    expect(step2.processing!.action).toBe('escalate');
+    expect(step2.processing!.escalationReason).toBe('product_discovery');
+  });
 
   it('attemptWhatsAppDelivery is called after outbound message storage', async () => {
     if (!dbAvailable) return;

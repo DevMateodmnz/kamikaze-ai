@@ -322,6 +322,64 @@ export async function processInboundMessage(
   // Make decision (passes business profile so decision engine stays env-agnostic)
   const decision = makeDecision(detection.intent, detection.confidence, businessProfile);
 
+  // ── Product discovery state (PR-013) ──────────────────────────
+  // When a previous product_interest reply is waiting for follow-up,
+  // the next message may be a discovery response even if keyword
+  // classification alone would not detect product_interest.
+  const convContext = await conversationsService.getConversationContext(result.conversation.id);
+  const discoveryActive = convContext?.discoveryState === 'AWAITING_PRODUCT_DETAILS';
+  const discoveryOriginalMessage = convContext?.discoveryOriginalMessage ?? null;
+  let discoveryContext: { originalMessage: string } | null = null;
+
+  // Effective decision — may be overridden for discovery follow-up
+  let effectiveDecision = decision;
+
+  if (discoveryActive) {
+    discoveryContext = discoveryOriginalMessage
+      ? { originalMessage: discoveryOriginalMessage }
+      : null;
+
+    if (decision.action === 'escalate') {
+      // Escalation intent during discovery → escalate normally,
+      // discovery context added to summary. Clear discovery state.
+      void conversationsService.updateConversationContext(result.conversation.id, {
+        discoveryState: null,
+        discoveryOriginalMessage: null,
+      });
+    } else {
+      // Reply intent during discovery
+      const discoveredSafeReplyIntents = [
+        'greeting', 'thanks', 'goodbye',
+        'store_hours', 'store_location', 'payment_methods', 'shipping',
+      ];
+      if (discoveredSafeReplyIntents.includes(detection.intent)) {
+        // Customer changed topic → reply normally, clear discovery
+        discoveryContext = null;
+        void conversationsService.updateConversationContext(result.conversation.id, {
+          discoveryState: null,
+          discoveryOriginalMessage: null,
+        });
+      } else {
+        // Discovery follow-up (unknown, product_interest re-detected, etc.)
+        // → override decision to escalate with product_discovery reason
+        effectiveDecision = {
+          action: 'escalate',
+          intent: detection.intent,
+          confidence: detection.confidence,
+          replyText: null,
+          escalationReason: 'product_discovery',
+          simulated: false,
+          outboundMessageId: null,
+        };
+        // Clear discovery state
+        void conversationsService.updateConversationContext(result.conversation.id, {
+          discoveryState: null,
+          discoveryOriginalMessage: null,
+        });
+      }
+    }
+  }
+
   // Trace metadata — collected during processing
   const aiReplyEnabled = validateEnv().AI_REPLIES_ENABLED;
   const intentSource = detection.intentSource ?? 'deterministic';
@@ -340,7 +398,7 @@ export async function processInboundMessage(
   let replySource: MessageProcessingTrace['replySource'] = null;
   let knowledgeBaseEntryId: string | undefined;
 
-  if (decision.action === 'reply' && decision.replyText) {
+  if (effectiveDecision.action === 'reply' && effectiveDecision.replyText) {
     // Try AI-generated reply for safe intents when enabled
     const aiReply = await generateReplyWithFallback({
       userMessage: input.text,
@@ -364,7 +422,7 @@ export async function processInboundMessage(
         replySource = 'knowledge_base';
         knowledgeBaseEntryId = kbAnswer.entryId;
       } else {
-        replyTextToStore = decision.replyText;
+        replyTextToStore = effectiveDecision.replyText;
         replySource = 'template';
       }
       replyAiProvider = 'deterministic';
@@ -381,8 +439,6 @@ export async function processInboundMessage(
     outboundMessageId = outbound.id;
 
     // Attempt WhatsApp delivery (disabled by default — WHATSAPP_OUTBOUND_ENABLED=false)
-    // Store-first: outbound message is persisted before delivery attempt.
-    // Delivery failure does NOT break processing — message is already stored.
     const deliveryResult = await attemptWhatsAppDelivery(replyTextToStore, result.customer.phone);
     outboundDelivery = {
       attempted: deliveryResult.reason !== 'disabled' && deliveryResult.reason !== 'config_missing',
@@ -392,11 +448,19 @@ export async function processInboundMessage(
       ...(deliveryResult.waMessageId && { waMessageId: deliveryResult.waMessageId }),
       ...(deliveryResult.wouldSend && { wouldSend: deliveryResult.wouldSend }),
     };
+
+    // ── Product discovery state (PR-013): save state after product_interest reply ──
+    if (detection.intent === 'product_interest' && !discoveryActive) {
+      void conversationsService.updateConversationContext(result.conversation.id, {
+        discoveryState: 'AWAITING_PRODUCT_DETAILS',
+        discoveryOriginalMessage: input.text,
+      });
+    }
   }
 
   // If action is escalate, update conversation status and create escalation record
   let escalationId: string | null = null;
-  if (decision.action === 'escalate') {
+  if (effectiveDecision.action === 'escalate') {
     await conversationsService.updateConversationStatus(
       result.conversation.id,
       'ESCALATED'
@@ -406,16 +470,39 @@ export async function processInboundMessage(
       detection.intent
     );
 
-    // Build operator-readable summary from available context
-    const escalationSummary = `Escalation triggered: ${decision.escalationReason}. Customer message: "${input.text.length > 200 ? input.text.substring(0, 197) + '...' : input.text}". Intent: ${detection.intent} (confidence: ${detection.confidence.toFixed(2)}, source: ${intentSource}). Conversation: ${result.conversation.id}.`;
+    // Build operator-readable summary — discovery-enriched when applicable
+    let escalationSummary: string;
+    if (effectiveDecision.escalationReason === 'product_discovery' && discoveryContext) {
+      // Discovery handoff: include both original and follow-up messages
+      const truncatedOriginal = discoveryContext.originalMessage.length > 150
+        ? discoveryContext.originalMessage.substring(0, 147) + '...'
+        : discoveryContext.originalMessage;
+      const truncatedFollowUp = input.text.length > 150
+        ? input.text.substring(0, 147) + '...'
+        : input.text;
+      escalationSummary = `Product discovery handoff. Original message: "${truncatedOriginal}". Follow-up response: "${truncatedFollowUp}". Recommended action: confirm available models, current price range, and invite customer to visit or continue the purchase conversation. Conversation: ${result.conversation.id}.`;
+    } else if (discoveryContext) {
+      // Escalation during discovery (e.g. human_request) — include discovery context
+      const truncatedOriginal = discoveryContext.originalMessage.length > 100
+        ? discoveryContext.originalMessage.substring(0, 97) + '...'
+        : discoveryContext.originalMessage;
+      escalationSummary = `Escalation triggered: ${effectiveDecision.escalationReason}. Customer message: "${input.text.length > 200 ? input.text.substring(0, 197) + '...' : input.text}". Intent: ${detection.intent} (confidence: ${detection.confidence.toFixed(2)}, source: ${intentSource}). Previous product interest: "${truncatedOriginal}". Conversation: ${result.conversation.id}.`;
+    } else {
+      escalationSummary = `Escalation triggered: ${effectiveDecision.escalationReason}. Customer message: "${input.text.length > 200 ? input.text.substring(0, 197) + '...' : input.text}". Intent: ${detection.intent} (confidence: ${detection.confidence.toFixed(2)}, source: ${intentSource}). Conversation: ${result.conversation.id}.`;
+    }
+
+    // Customer message for escalation record — for discovery, show the follow-up message
+    const escalationCustomerMessage = effectiveDecision.escalationReason === 'product_discovery'
+      ? `[Discovery] Original: ${discoveryContext?.originalMessage ?? 'n/a'} | Follow-up: ${input.text}`
+      : input.text;
 
     const escalation = await escalationsService.createEscalation({
       conversationId: result.conversation.id,
-      reason: decision.escalationReason ?? 'unknown',
+      reason: effectiveDecision.escalationReason ?? 'unknown',
       reasonDetail: detection.intent,
       suggestedReply: null,
       customerPhone: result.customer.phone,
-      customerMessage: input.text,
+      customerMessage: escalationCustomerMessage,
       detectedIntent: detection.intent,
       intentConfidence: detection.confidence,
       classificationSource: intentSource,

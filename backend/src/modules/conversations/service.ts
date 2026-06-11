@@ -153,6 +153,20 @@ export async function updateConversationIntent(
 }
 
 /**
+ * Read conversation context (for discovery state checks, etc.).
+ * Returns null when conversation not found.
+ */
+export async function getConversationContext(
+  conversationId: string
+): Promise<ConversationContext | null> {
+  const conv = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { context: true },
+  });
+  return (conv?.context as ConversationContext) ?? null;
+}
+
+/**
  * Convert Prisma Conversation to ConversationResponse
  */
 function conversationToResponse(conversation: {
@@ -183,6 +197,7 @@ function conversationToResponse(conversation: {
 export const conversationsService = {
   getOrCreateConversation,
   getConversationById,
+  getConversationContext,
   updateConversationStatus,
   updateConversationContext,
   incrementMessageCount,

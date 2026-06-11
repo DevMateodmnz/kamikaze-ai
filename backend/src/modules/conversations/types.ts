@@ -28,4 +28,9 @@ export interface ConversationContext {
   };
   turnIndex?: number;
   escalated?: boolean;
+  // ── Product discovery (PR-013) ────────────────────────────
+  /** Discovery state: null (inactive) | 'AWAITING_PRODUCT_DETAILS'. */
+  discoveryState?: 'AWAITING_PRODUCT_DETAILS' | null;
+  /** Original customer message that triggered product interest. */
+  discoveryOriginalMessage?: string | null;
 }
