@@ -62,10 +62,10 @@ interface ChatMessage {
 }
 
 interface ChatCompletionResponse {
-  choices?: Array<{
+  choices?: {
     message?: { role?: string; content?: string };
     finish_reason?: string;
-  }>;
+  }[];
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
@@ -91,11 +91,11 @@ export class MiniMaxProvider implements AiProvider {
   private readonly timeoutMs: number;
 
   constructor() {
-    this.apiKey = process.env['MINIMAX_API_KEY'] ?? '';
-    this.model = process.env['MINIMAX_MODEL'] ?? '';
-    this.baseUrl = process.env['MINIMAX_API_BASE_URL'] ?? DEFAULT_BASE_URL;
+    this.apiKey = process.env.MINIMAX_API_KEY ?? '';
+    this.model = process.env.MINIMAX_MODEL ?? '';
+    this.baseUrl = process.env.MINIMAX_API_BASE_URL ?? DEFAULT_BASE_URL;
     this.timeoutMs = parseInt(
-      process.env['AI_TIMEOUT_MS'] ?? String(DEFAULT_TIMEOUT_MS),
+      process.env.AI_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT_MS),
       10
     );
   }
@@ -119,7 +119,7 @@ export class MiniMaxProvider implements AiProvider {
     messages.push({ role: 'user', content: input.userMessage });
 
     const maxTokens = parseInt(
-      process.env['AI_MAX_TOKENS_REPLY'] ?? String(DEFAULT_MAX_TOKENS_REPLY),
+      process.env.AI_MAX_TOKENS_REPLY ?? String(DEFAULT_MAX_TOKENS_REPLY),
       10
     );
 
@@ -138,8 +138,6 @@ export class MiniMaxProvider implements AiProvider {
   }
 
   async classifyIntent(input: ClassifyIntentInput): Promise<ClassifyIntentOutput> {
-    const start = Date.now();
-
     const intentsList = Array.from(VALID_INTENTS).join(', ');
     const messages: ChatMessage[] = [
       {
@@ -152,7 +150,7 @@ export class MiniMaxProvider implements AiProvider {
     ];
 
     const maxTokens = parseInt(
-      process.env['AI_MAX_TOKENS_INTENT'] ?? String(DEFAULT_MAX_TOKENS_INTENT),
+      process.env.AI_MAX_TOKENS_INTENT ?? String(DEFAULT_MAX_TOKENS_INTENT),
       10
     );
 
@@ -193,9 +191,9 @@ export class MiniMaxProvider implements AiProvider {
     return {
       summary: {
         summary: typeof parsed.summary === 'string' ? parsed.summary : result.content,
-        keyTopics: Array.isArray(parsed.keyTopics) ? parsed.keyTopics : [],
+        keyTopics: this.stringArray(parsed.keyTopics),
         customerSentiment: this.validateSentiment(parsed.customerSentiment),
-        escalationReasons: Array.isArray(parsed.escalationReasons) ? parsed.escalationReasons : [],
+        escalationReasons: this.stringArray(parsed.escalationReasons),
         suggestedReply: typeof parsed.suggestedReply === 'string' ? parsed.suggestedReply : undefined,
       },
       tokensUsed: result.usage,
@@ -229,15 +227,13 @@ export class MiniMaxProvider implements AiProvider {
     const lead: LeadData = {
       name: typeof parsed.name === 'string' ? parsed.name : undefined,
       phone: typeof parsed.phone === 'string' ? parsed.phone : undefined,
-      interestedIn: Array.isArray(parsed.interestedIn) ? parsed.interestedIn : [],
+      interestedIn: this.stringArray(parsed.interestedIn),
       budget: typeof parsed.budget === 'string' ? parsed.budget : undefined,
       timeline: this.validateTimeline(parsed.timeline),
       preferredContactMethod: this.validateContactMethod(parsed.preferredContactMethod),
       notes: typeof parsed.notes === 'string' ? parsed.notes : undefined,
       qualified: Boolean(parsed.qualified),
-      qualificationReasons: Array.isArray(parsed.qualificationReasons)
-        ? parsed.qualificationReasons
-        : [],
+      qualificationReasons: this.stringArray(parsed.qualificationReasons),
     };
 
     return {
@@ -281,7 +277,6 @@ export class MiniMaxProvider implements AiProvider {
       });
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
         throw new AppError(
           `MiniMax API responded with ${response.status}: ${response.statusText}`,
           { statusCode: 502, code: 'AI_PROVIDER_ERROR' }
@@ -303,7 +298,7 @@ export class MiniMaxProvider implements AiProvider {
       // AbortError: name check is more portable than instanceof DOMException
       // (DOMException may not extend Error in all Node environments).
       const maybeError = error as Record<string, unknown> | null | undefined;
-      if (maybeError != null && maybeError['name'] === 'AbortError') {
+      if (maybeError?.name === 'AbortError') {
         throw new AppError('AI provider request timed out', {
           statusCode: 504,
           code: 'AI_PROVIDER_TIMEOUT',
@@ -352,11 +347,17 @@ export class MiniMaxProvider implements AiProvider {
     try {
       // Strip markdown code fences if present
       const cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed: unknown = JSON.parse(cleaned);
       return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
     } catch {
       return {};
     }
+  }
+
+  private stringArray(value: unknown): string[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string')
+      : [];
   }
 
   private validateSentiment(

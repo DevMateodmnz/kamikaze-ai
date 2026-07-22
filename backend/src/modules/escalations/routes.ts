@@ -33,6 +33,7 @@ const resolveSchema = z.object({
 
 export { idSchema, statusUpdateSchema, resolveSchema };
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify detects async plugins at runtime.
 export const escalationsRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /api/v1/escalations
   // List all escalations, optionally filtered by status

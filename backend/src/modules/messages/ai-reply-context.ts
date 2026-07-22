@@ -21,6 +21,13 @@ export interface AiReplyContextInput {
   verifiedFacts?: string[];
 }
 
+function preferNonEmpty(
+  value: string | undefined,
+  fallback: string | undefined
+): string | undefined {
+  return value === undefined || value.length === 0 ? fallback : value;
+}
+
 /**
  * Build the system prompt/context for AI-generated customer-facing replies.
  *
@@ -34,8 +41,11 @@ export function buildAiReplyContext(
   const lines: string[] = [];
 
   // ── Company identity ──────────────────────────────────────────
-  const companyName = input?.companyName || process.env['COMPANY_NAME'];
-  const businessType = input?.businessType || process.env['COMPANY_BUSINESS_TYPE'];
+  const companyName = preferNonEmpty(input?.companyName, process.env.COMPANY_NAME);
+  const businessType = preferNonEmpty(
+    input?.businessType,
+    process.env.COMPANY_BUSINESS_TYPE
+  );
 
   if (companyName && businessType) {
     lines.push(

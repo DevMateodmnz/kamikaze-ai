@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { AppError } from '../../utils/app-error.js';
 import { customersService } from './service.js';
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify detects async plugins at runtime.
 export const customersRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /api/v1/customers/:id
   app.get(

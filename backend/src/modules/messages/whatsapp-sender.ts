@@ -98,7 +98,7 @@ export async function attemptWhatsAppDelivery(
     }
 
     const json = await response.json() as {
-      messages?: Array<{ id?: string }>;
+      messages?: { id?: string }[];
     };
     const waMessageId = json.messages?.[0]?.id;
 

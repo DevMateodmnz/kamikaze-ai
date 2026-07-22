@@ -28,7 +28,7 @@ import type {
 import { createAiProvider } from './factory.js';
 
 function getProvider(): AiProvider {
-  const name = (process.env['AI_PROVIDER'] ?? 'minimax') as AiProviderName;
+  const name = (process.env.AI_PROVIDER ?? 'minimax') as AiProviderName;
   return createAiProvider(name);
 }
 

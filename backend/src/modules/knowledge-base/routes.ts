@@ -37,6 +37,7 @@ const idSchema = z.object({
 
 export { querySchema, categorySchema, tagsSchema, idSchema };
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify detects async plugins at runtime.
 export const knowledgeBaseRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /api/v1/knowledge-base
   // List all entries, optionally filtered

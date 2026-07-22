@@ -16,10 +16,12 @@ import { inspectMessageProcessing } from '../modules/messages/inspection.js';
 import type { ProcessMessageResult } from '../modules/messages/service.js';
 import type {
   MessageProcessingTrace,
-  IntentSource,
   ReplySource,
 } from '../modules/messages/types.js';
 import type { Intent } from '../modules/intent-detection/types.js';
+
+// eslint-disable-next-line no-console -- This local CLI intentionally prints its inspection report.
+const log = console.log.bind(console);
 
 // ---------------------------------------------------------------------------
 // Load fixtures
@@ -41,7 +43,10 @@ interface FixtureEntry {
 }
 
 const raw = readFileSync(fixturePath, 'utf-8');
-const allFixtures: FixtureEntry[] = JSON.parse(raw);
+const parsedFixtures: unknown = JSON.parse(raw);
+const allFixtures = Array.isArray(parsedFixtures)
+  ? parsedFixtures as FixtureEntry[]
+  : [];
 
 // Only entries with _expectedIntent are inspectable
 const runnable = allFixtures.filter((f) => f._expectedIntent);
@@ -88,8 +93,8 @@ function buildMockResult(fixture: FixtureEntry): ProcessMessageResult {
 // Main
 // ---------------------------------------------------------------------------
 
-console.log('=== Conversation Fixture Inspection ===\n');
-console.log(`Fixtures with metadata: ${runnable.length} of ${allFixtures.length}\n`);
+log('=== Conversation Fixture Inspection ===\n');
+log(`Fixtures with metadata: ${runnable.length} of ${allFixtures.length}\n`);
 
 const results = runnable.map((fixture) => {
   const mockResult = buildMockResult(fixture);
@@ -104,7 +109,7 @@ const results = runnable.map((fixture) => {
 });
 
 // Output as formatted JSON
-console.log(JSON.stringify(results, null, 2));
+log(JSON.stringify(results, null, 2));
 
 // Summary
 const processed = results.filter((r) => r.inspection.processed).length;
@@ -115,9 +120,9 @@ const templates = results.filter(
   (r) => r.inspection.replySource === 'template'
 ).length;
 
-console.log(`\n=== Summary ===`);
-console.log(`Total runnable: ${results.length}`);
-console.log(`Processed:      ${processed}`);
-console.log(`Templates:      ${templates}`);
-console.log(`Escalations:    ${escalations}`);
-console.log(`AI replies:     0 (AI_REPLIES_ENABLED=false by default)`);
+log(`\n=== Summary ===`);
+log(`Total runnable: ${results.length}`);
+log(`Processed:      ${processed}`);
+log(`Templates:      ${templates}`);
+log(`Escalations:    ${escalations}`);
+log(`AI replies:     0 (AI_REPLIES_ENABLED=false by default)`);

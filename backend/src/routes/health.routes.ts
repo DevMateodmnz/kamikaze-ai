@@ -6,6 +6,7 @@ import { prisma } from '../config/database.js';
 
 const startTime = Date.now();
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify detects async plugins at runtime.
 export const healthRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // Basic liveness check
   app.get('/health', async (_request: FastifyRequest, reply: FastifyReply) => {

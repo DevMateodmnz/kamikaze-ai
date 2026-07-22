@@ -74,12 +74,12 @@ const ADVICE_PATTERNS = [
  * Uses \s|$ instead of \b after accented chars (JS \b doesn't work with accents).
  */
 const FALSE_ACTION_PATTERNS = [
-  /\bya reserv[ée](\s|$|\.|\,)/i,
-  /\bya compr[ée](\s|$|\.|\,)/i,
-  /\bya agend[ée](\s|$|\.|\,)/i,
+  /\bya reserv[ée](\s|$|\.|,)/i,
+  /\bya compr[ée](\s|$|\.|,)/i,
+  /\bya agend[ée](\s|$|\.|,)/i,
   /\bte confirmo el pedido\b/i,
   /\btu pedido qued[oó] confirmado\b/i,
-  /\bya gestion[ée](\s|$|\.|\,)/i,
+  /\bya gestion[ée](\s|$|\.|,)/i,
 ];
 
 /**

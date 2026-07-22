@@ -19,6 +19,7 @@ import { AppError } from '../../utils/app-error.js';
  *
  * Usage: fastify.addHook('preHandler', verifyApiKey)
  */
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify detects async hooks at runtime.
 export async function verifyApiKey(
   request: FastifyRequest,
   _reply: FastifyReply

@@ -103,7 +103,7 @@ export function verifyWebhookSignature(
   signature: string,
   appSecret: string
 ): boolean {
-  if (!signature || !signature.startsWith('sha256=')) {
+  if (!signature?.startsWith('sha256=')) {
     return false;
   }
 

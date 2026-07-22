@@ -14,16 +14,18 @@ import { AppError } from '../../utils/app-error.js';
  *
  * NOT IMPLEMENTED - throws in scaffold
  */
-export async function logEvent(
+export function logEvent(
   _eventType: EventType,
   _conversationId?: string,
   _intent?: string,
   _metadata?: Record<string, unknown>
 ): Promise<void> {
-  throw new AppError('Analytics module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
-  });
+  return Promise.reject(
+    new AppError('Analytics module not implemented', {
+      statusCode: 501,
+      code: 'NOT_IMPLEMENTED',
+    })
+  );
 }
 
 /**
@@ -31,7 +33,7 @@ export async function logEvent(
  *
  * NOT IMPLEMENTED - throws in scaffold
  */
-export async function logAiInteraction(_params: {
+export function logAiInteraction(_params: {
   conversationId?: string;
   operation: string;
   provider: string;
@@ -43,10 +45,12 @@ export async function logAiInteraction(_params: {
   success: boolean;
   errorMessage?: string;
 }): Promise<void> {
-  throw new AppError('Analytics module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
-  });
+  return Promise.reject(
+    new AppError('Analytics module not implemented', {
+      statusCode: 501,
+      code: 'NOT_IMPLEMENTED',
+    })
+  );
 }
 
 /**
@@ -54,11 +58,13 @@ export async function logAiInteraction(_params: {
  *
  * NOT IMPLEMENTED - throws in scaffold
  */
-export async function getAiCostSummary(_days?: number): Promise<AiCostSummary[]> {
-  throw new AppError('Analytics module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
-  });
+export function getAiCostSummary(_days?: number): Promise<AiCostSummary[]> {
+  return Promise.reject(
+    new AppError('Analytics module not implemented', {
+      statusCode: 501,
+      code: 'NOT_IMPLEMENTED',
+    })
+  );
 }
 
 /**
@@ -66,11 +72,13 @@ export async function getAiCostSummary(_days?: number): Promise<AiCostSummary[]>
  *
  * NOT IMPLEMENTED - throws in scaffold
  */
-export async function getConversationStats(): Promise<Record<string, number>> {
-  throw new AppError('Analytics module not implemented', {
-    statusCode: 501,
-    code: 'NOT_IMPLEMENTED',
-  });
+export function getConversationStats(): Promise<Record<string, number>> {
+  return Promise.reject(
+    new AppError('Analytics module not implemented', {
+      statusCode: 501,
+      code: 'NOT_IMPLEMENTED',
+    })
+  );
 }
 
 // Export as singleton service object

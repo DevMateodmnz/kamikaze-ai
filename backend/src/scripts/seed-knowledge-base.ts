@@ -20,6 +20,13 @@ import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import prisma from '../config/database.js';
 
+// eslint-disable-next-line no-console -- This administrative CLI intentionally reports seed progress.
+const log = console.log.bind(console);
+// eslint-disable-next-line no-console -- This administrative CLI intentionally reports skipped input.
+const warn = console.warn.bind(console);
+// eslint-disable-next-line no-console -- This administrative CLI intentionally reports fatal failures.
+const errorLog = console.error.bind(console);
+
 const SEED_ENTRIES = [
   // ============================================
   // STORE HOURS — NEEDS BUSINESS VERIFICATION
@@ -183,7 +190,7 @@ function loadVerifiedEntries(): typeof SEED_ENTRIES {
   const jsonPath = resolve(process.cwd(), '../data/kb-verified.json');
 
   if (!existsSync(jsonPath)) {
-    console.log('ℹ️  data/kb-verified.json not found — using only inline seed entries.');
+    log('ℹ️  data/kb-verified.json not found — using only inline seed entries.');
     return [];
   }
 
@@ -192,7 +199,7 @@ function loadVerifiedEntries(): typeof SEED_ENTRIES {
     const parsed: unknown = JSON.parse(raw);
 
     if (!Array.isArray(parsed)) {
-      console.warn('⚠️  data/kb-verified.json is not an array — skipping.');
+      warn('⚠️  data/kb-verified.json is not an array — skipping.');
       return [];
     }
 
@@ -200,33 +207,33 @@ function loadVerifiedEntries(): typeof SEED_ENTRIES {
     for (const item of parsed) {
       if (typeof item !== 'object' || item === null) continue;
       const e = item as Record<string, unknown>;
-      if (!e.category || !e.answer) {
-        console.warn('⚠️  Skipping entry with missing category/answer:', e);
+      if (typeof e.category !== 'string' || typeof e.answer !== 'string') {
+        warn('⚠️  Skipping entry with missing category/answer:', e);
         continue;
       }
 
       entries.push({
-        category: String(e.category),
+        category: e.category,
         question: typeof e.question === 'string' ? e.question : null,
-        answer: String(e.answer),
+        answer: e.answer,
         tags: Array.isArray(e.tags)
-          ? e.tags.map((t: unknown) => String(t))
+          ? e.tags.filter((tag): tag is string => typeof tag === 'string')
           : [],
         confidence: typeof e.confidence === 'number' ? e.confidence : 0.3,
         active: Boolean(e.active),
       } as (typeof SEED_ENTRIES)[number]);
     }
 
-    console.log(`📄 Loaded ${entries.length} entries from data/kb-verified.json`);
+    log(`📄 Loaded ${entries.length} entries from data/kb-verified.json`);
     return entries;
   } catch (err) {
-    console.warn('⚠️  Failed to parse data/kb-verified.json:', (err as Error).message);
+    warn('⚠️  Failed to parse data/kb-verified.json:', (err as Error).message);
     return [];
   }
 }
 
 async function seed() {
-  console.log('🌱 Seeding knowledge base...');
+  log('🌱 Seeding knowledge base...');
 
   // Resolve company name for seed data placeholders
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- || catches empty strings
@@ -251,7 +258,7 @@ async function seed() {
     });
 
     if (existing) {
-      console.log(`  ⏭️  Skipping (exists): [${entry.category}] ${(entry.question ?? '').substring(0, 40)}...`);
+      log(`  ⏭️  Skipping (exists): [${entry.category}] ${(entry.question ?? '').substring(0, 40)}...`);
       skipped++;
       continue;
     }
@@ -268,28 +275,28 @@ async function seed() {
     });
 
     const status = entry.active ? '✅' : '⚠️ ';
-    console.log(`  ${status} Created: [${entry.category}] ${(entry.question ?? '').substring(0, 40)}... (active=${entry.active})`);
+    log(`  ${status} Created: [${entry.category}] ${(entry.question ?? '').substring(0, 40)}... (active=${entry.active})`);
     created++;
   }
 
-  console.log(`\n📊 Seed complete: ${created} created, ${skipped} skipped`);
+  log(`\n📊 Seed complete: ${created} created, ${skipped} skipped`);
 
   const totalActive = await prisma.knowledgeBaseEntry.count({ where: { active: true } });
   const totalInactive = await prisma.knowledgeBaseEntry.count({ where: { active: false } });
   const total = await prisma.knowledgeBaseEntry.count();
 
-  console.log(`📊 Total entries: ${total} (${totalActive} active, ${totalInactive} inactive)`);
-  console.log('\n⚠️  NOTE: Entries with active=false have NEEDS_BUSINESS_VERIFICATION.');
-  console.log('    Do NOT set active=true until the business owner has confirmed the information.');
-  console.log('    Copy data/kb-verified.example.json → data/kb-verified.json to add verified entries.');
+  log(`📊 Total entries: ${total} (${totalActive} active, ${totalInactive} inactive)`);
+  log('\n⚠️  NOTE: Entries with active=false have NEEDS_BUSINESS_VERIFICATION.');
+  log('    Do NOT set active=true until the business owner has confirmed the information.');
+  log('    Copy data/kb-verified.example.json → data/kb-verified.json to add verified entries.');
 }
 
 seed()
   .then(() => {
-    console.log('\n✅ Seed completed successfully');
+    log('\n✅ Seed completed successfully');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('\n❌ Seed failed:', error);
+    errorLog('\n❌ Seed failed:', error);
     process.exit(1);
   });

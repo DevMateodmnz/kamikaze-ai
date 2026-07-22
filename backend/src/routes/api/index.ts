@@ -11,9 +11,10 @@ import { analyticsRouter } from '../../modules/analytics/routes.js';
 import { securityRouter } from '../../modules/security/routes.js';
 import { internalRouter } from './internal.js';
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify detects async plugins at runtime.
 export const apiRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   // Placeholder ping endpoint
-  app.get('/ping', async () => ({ pong: true, timestamp: new Date().toISOString() }));
+  app.get('/ping', () => ({ pong: true, timestamp: new Date().toISOString() }));
 
   // Register module routes (all return 501 Not Implemented in scaffold)
   void app.register(messagesRouter, { prefix: '/messages' });

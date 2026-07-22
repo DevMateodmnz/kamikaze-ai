@@ -24,6 +24,7 @@ const escalateSchema = z.object({
 
 export { idSchema, escalateSchema };
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify detects async plugins at runtime.
 export const conversationsRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /api/v1/conversations/:id
   app.get(

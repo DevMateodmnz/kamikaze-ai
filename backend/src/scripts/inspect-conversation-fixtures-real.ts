@@ -22,12 +22,17 @@ import { validateEnv } from '../config/env.js';
 
 const e = validateEnv();
 
+// eslint-disable-next-line no-console -- This CLI intentionally prints progress and its report.
+const log = console.log.bind(console);
+// eslint-disable-next-line no-console -- This CLI intentionally reports actionable failures.
+const errorLog = console.error.bind(console);
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
-const BASE_URL = process.env['BACKEND_URL'] ?? 'http://localhost:3000';
-const API_KEY = process.env['INTERNAL_API_KEY'] ?? 'change_me_to_a_secure_random_key';
+const BASE_URL = process.env.BACKEND_URL ?? 'http://localhost:3000';
+const API_KEY = process.env.INTERNAL_API_KEY ?? 'change_me_to_a_secure_random_key';
 const { hostname, port } = new URL(BASE_URL);
 const API_PORT = parseInt(port || '3000', 10);
 
@@ -120,7 +125,10 @@ interface FixtureEntry {
 }
 
 const raw = readFileSync(fixturePath, 'utf-8');
-const allFixtures: FixtureEntry[] = JSON.parse(raw);
+const parsedFixtures: unknown = JSON.parse(raw);
+const allFixtures = Array.isArray(parsedFixtures)
+  ? parsedFixtures as FixtureEntry[]
+  : [];
 const runnable = allFixtures.filter((f) => f._expectedIntent);
 
 // ---------------------------------------------------------------------------
@@ -152,25 +160,25 @@ function formatInspection(raw: unknown, scenario: string): InspectionResult {
   if (!r) {
     return { processed: false, duplicate: false, notes: ['No response from backend.'] };
   }
-  const proc = r['processing'] as Record<string, unknown> | null;
-  const trace = (proc?.['trace'] ?? null) as Record<string, unknown> | null;
-  const od = trace?.['outboundDelivery'] as Record<string, unknown> | undefined;
+  const proc = r.processing as Record<string, unknown> | null;
+  const trace = (proc?.trace ?? null) as Record<string, unknown> | null;
+  const od = trace?.outboundDelivery as Record<string, unknown> | undefined;
   return {
     processed: proc != null,
-    duplicate: Boolean(r['duplicate']),
-    intent: trace?.['intent'] as string | undefined,
-    intentSource: trace?.['intentSource'] as string | undefined,
-    replySource: trace?.['replySource'] as string | null | undefined,
-    aiIntentUsed: trace?.['aiIntentUsed'] as boolean | undefined,
-    aiReplyUsed: trace?.['aiReplyUsed'] as boolean | undefined,
-    aiReplyEnabled: trace?.['aiReplyEnabled'] as boolean | undefined,
-    knowledgeBaseEntryId: trace?.['knowledgeBaseEntryId'] as string | undefined,
-    confidence: trace?.['confidence'] as number | undefined,
+    duplicate: Boolean(r.duplicate),
+    intent: trace?.intent as string | undefined,
+    intentSource: trace?.intentSource as string | undefined,
+    replySource: trace?.replySource as string | null | undefined,
+    aiIntentUsed: trace?.aiIntentUsed as boolean | undefined,
+    aiReplyUsed: trace?.aiReplyUsed as boolean | undefined,
+    aiReplyEnabled: trace?.aiReplyEnabled as boolean | undefined,
+    knowledgeBaseEntryId: trace?.knowledgeBaseEntryId as string | undefined,
+    confidence: trace?.confidence as number | undefined,
     outboundDelivery: od ? {
-      attempted: Boolean(od['attempted']),
-      sent: Boolean(od['sent']),
-      reason: String(od['reason'] ?? 'unknown'),
-      ...(od['waMessageId'] ? { waMessageId: String(od['waMessageId']) } : {}),
+      attempted: Boolean(od.attempted),
+      sent: Boolean(od.sent),
+      reason: typeof od.reason === 'string' ? od.reason : 'unknown',
+      ...(typeof od.waMessageId === 'string' ? { waMessageId: od.waMessageId } : {}),
     } : undefined,
     notes: [
       `[real service] ${scenario}`,
@@ -184,36 +192,36 @@ function formatInspection(raw: unknown, scenario: string): InspectionResult {
 // ---------------------------------------------------------------------------
 
 async function main() {
-  console.log('=== Real-Service Fixture Inspection ===\n');
+  log('=== Real-Service Fixture Inspection ===\n');
 
   if (e.AI_CLASSIFICATION_ENABLED) {
-    console.error('ERROR: AI_CLASSIFICATION_ENABLED must be set to "false".');
-    console.error('This prevents external AI provider calls during fixture inspection.');
-    console.error('\nRun with:');
-    console.error('  AI_CLASSIFICATION_ENABLED=false npm run inspect:fixtures:real');
-    console.error('\nOr set it in your .env file:');
-    console.error('  AI_CLASSIFICATION_ENABLED=false');
+    errorLog('ERROR: AI_CLASSIFICATION_ENABLED must be set to "false".');
+    errorLog('This prevents external AI provider calls during fixture inspection.');
+    errorLog('\nRun with:');
+    errorLog('  AI_CLASSIFICATION_ENABLED=false npm run inspect:fixtures:real');
+    errorLog('\nOr set it in your .env file:');
+    errorLog('  AI_CLASSIFICATION_ENABLED=false');
     process.exit(1);
   }
 
-  console.log(`Checking backend at ${BASE_URL}...`);
+  log(`Checking backend at ${BASE_URL}...`);
   const backendOk = await checkBackend();
   if (!backendOk) {
-    console.error('Backend not reachable. Start the backend first:');
-    console.error('  cd backend && npm run dev');
+    errorLog('Backend not reachable. Start the backend first:');
+    errorLog('  cd backend && npm run dev');
     process.exit(1);
   }
-  console.log('Backend healthy.\n');
+  log('Backend healthy.\n');
 
   const suffix = Date.now().toString(36);
-  const results: Array<{
+  const results: {
     scenario: string;
     from: string;
     expectedIntent?: string;
     expectedReplySource?: string;
     inspection: InspectionResult;
     error?: string;
-  }> = [];
+  }[] = [];
 
   // ── Single-message fixtures ─────────────────────────────────────
   const singleFixtures = runnable.filter(
@@ -236,7 +244,7 @@ async function main() {
         expectedReplySource: fixture._expectedReplySource,
         inspection: formatInspection(raw, scenario),
       });
-      console.log('OK');
+      log('OK');
     } catch (err) {
       results.push({
         scenario,
@@ -246,7 +254,7 @@ async function main() {
         inspection: { processed: false, duplicate: false, notes: [] },
         error: (err as Error).message,
       });
-      console.log(`ERROR: ${(err as Error).message}`);
+      log(`ERROR: ${(err as Error).message}`);
     }
   }
 
@@ -263,7 +271,7 @@ async function main() {
         expectedReplySource: dupFixture._expectedReplySource,
         inspection: formatInspection(first, '16-dup'),
       });
-      console.log('OK');
+      log('OK');
       process.stdout.write(`  16-duplicate-idempotency (second)... `);
       const second = await sendFixture(dupFixture, suffix);
       results.push({
@@ -271,9 +279,9 @@ async function main() {
         from: '(masked)',
         inspection: formatInspection(second, '16-dup'),
       });
-      console.log('OK');
+      log('OK');
     } catch (err) {
-      console.log(`ERROR: ${(err as Error).message}`);
+      log(`ERROR: ${(err as Error).message}`);
     }
   }
 
@@ -297,14 +305,14 @@ async function main() {
           inspection: formatInspection(raw, fixture._scenario ?? ''),
         });
       }
-      console.log('OK');
+      log('OK');
     } catch (err) {
-      console.log(`ERROR: ${(err as Error).message}`);
+      log(`ERROR: ${(err as Error).message}`);
     }
   }
 
   // ── Output ─────────────────────────────────────────────────────
-  console.log('\n' + JSON.stringify(results, null, 2));
+  log('\n' + JSON.stringify(results, null, 2));
 
   const processed = results.filter((r) => r.inspection.processed).length;
   const duplicates = results.filter((r) => r.inspection.duplicate).length;
@@ -312,19 +320,19 @@ async function main() {
   const templates = results.filter((r) => r.inspection.replySource === 'template').length;
   const errors = results.filter((r) => r.error).length;
 
-  console.log(`\n=== Summary ===`);
-  console.log(`Total sent:     ${results.length}`);
-  console.log(`Processed:      ${processed}`);
-  console.log(`Duplicates:     ${duplicates}`);
-  console.log(`Templates:      ${templates}`);
-  console.log(`Escalations:    ${escalations}`);
-  console.log(`Errors:         ${errors}`);
-  console.log(`AI replies:     0 (AI_REPLIES_ENABLED=false by default)`);
-  console.log(`\nBackend: ${BASE_URL}`);
-  console.log(`AI_CLASSIFICATION_ENABLED: ${e.AI_CLASSIFICATION_ENABLED}`);
+  log(`\n=== Summary ===`);
+  log(`Total sent:     ${results.length}`);
+  log(`Processed:      ${processed}`);
+  log(`Duplicates:     ${duplicates}`);
+  log(`Templates:      ${templates}`);
+  log(`Escalations:    ${escalations}`);
+  log(`Errors:         ${errors}`);
+  log(`AI replies:     0 (AI_REPLIES_ENABLED=false by default)`);
+  log(`\nBackend: ${BASE_URL}`);
+  log(`AI_CLASSIFICATION_ENABLED: ${e.AI_CLASSIFICATION_ENABLED}`);
 }
 
 main().catch((err) => {
-  console.error('Fatal error:', err);
+  errorLog('Fatal error:', err);
   process.exit(1);
 });

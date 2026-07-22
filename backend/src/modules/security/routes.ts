@@ -17,6 +17,13 @@ import {
 } from './whatsapp-webhook.js';
 import { messagesService } from '../messages/service.js';
 
+declare module 'fastify' {
+  interface FastifyRequest {
+    rawBody?: Buffer;
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify detects async plugins at runtime.
 export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) => {
   // ------------------------------------------------------------------
   // Raw body capture: Meta signs the EXACT bytes before JSON parsing.
@@ -24,7 +31,7 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
   // It captures the raw Buffer before Fastify parses the body.
   // ------------------------------------------------------------------
   app.addHook('preParsing', async (request: FastifyRequest, _reply, payload) => {
-    const url = request.url || '';
+    const url = request.url;
     const isWhatsAppPost =
       request.method === 'POST' &&
       (url === '/api/v1/security/whatsapp/webhook' ||
@@ -36,7 +43,7 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
       chunks.push(chunk as Buffer);
     }
     const raw = Buffer.concat(chunks);
-    (request as any).rawBody = raw;
+    request.rawBody = raw;
     // Re-emit the raw bytes as a stream so Fastify can still parse the body
     return Readable.from([raw]);
   });
@@ -50,10 +57,10 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
   // ----------------------------------------------------------------
   app.get('/whatsapp/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
     const query = request.query as Record<string, string>;
-    const mode = query['hub.mode'] || '';
-    const token = query['hub.verify_token'] || '';
-    const challenge = query['hub.challenge'] || '';
-    const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN || '';
+    const mode = query['hub.mode'] ?? '';
+    const token = query['hub.verify_token'] ?? '';
+    const challenge = query['hub.challenge'] ?? '';
+    const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN ?? '';
 
     try {
       const result = verifyHubChallenge(mode, token, challenge, expectedToken);
@@ -87,19 +94,20 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
     }
 
     // Verify we have the shared secret
-    const appSecret = process.env.WHATSAPP_APP_SECRET || '';
+    const appSecret = process.env.WHATSAPP_APP_SECRET ?? '';
     if (!appSecret) {
       return reply.status(500).send('WHATSAPP_APP_SECRET not configured');
     }
 
     // Extract and validate the signature header
-    const signature = (request.headers['x-hub-signature-256'] as string) || '';
+    const signatureHeader = request.headers['x-hub-signature-256'];
+    const signature = typeof signatureHeader === 'string' ? signatureHeader : '';
     if (!signature) {
       return reply.status(401).send('Missing X-Hub-Signature-256 header');
     }
 
     // Get the raw body captured by the preParsing hook
-    const rawBody = (request as any).rawBody as Buffer | undefined;
+    const rawBody = request.rawBody;
     if (!rawBody || rawBody.length === 0) {
       return reply.status(400).send('Empty request body');
     }
@@ -116,7 +124,7 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
     // because the preParsing hook re-emitted the raw bytes as a stream.
     const body = request.body as Record<string, unknown> | null;
 
-    const parsed = parseWhatsAppMessage(body as any);
+    const parsed = parseWhatsAppMessage(body);
 
     // Non-text events (status callbacks, media, interactive, etc.)
     // must still return 200 OK so Meta does not retry.
@@ -136,7 +144,7 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
   });
 
   // GET /api/v1/security/rate-limit-status (placeholder)
-  app.get('/rate-limit-status', async () => {
+  app.get('/rate-limit-status', () => {
     throw new AppError('Security rate limiting not implemented', {
       statusCode: 501,
       code: 'NOT_IMPLEMENTED',
