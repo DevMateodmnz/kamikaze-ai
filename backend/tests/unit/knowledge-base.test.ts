@@ -252,7 +252,7 @@ describe('KB Integration Tests', () => {
     it('returns null for payment_methods when only untagged store_info entry exists', async () => {
       if (!dbAvailable) return;
       // Create an entry that's in store_info but tagged only for hours
-      await knowledgeBaseService.createEntry({
+      const hoursOnlyEntry = await knowledgeBaseService.createEntry({
         category: 'store_info',
         question: `[TEST-${testTimestamp}] Solo horas`,
         answer: 'HORAS_TEST',
@@ -264,6 +264,7 @@ describe('KB Integration Tests', () => {
       const result = await knowledgeBaseService.getVerifiedAnswerForIntent('payment_methods');
       // Should be null — no entry tagged for payment methods
       expect(result).toBeNull();
+      await knowledgeBaseService.deactivateEntry(hoursOnlyEntry.id);
     });
 
     it('returns shipping entry for shipping when shipping-tagged entry exists', async () => {
@@ -340,6 +341,32 @@ describe('KB Integration Tests', () => {
 
       const result = await knowledgeBaseService.getVerifiedAnswerForIntent('payment_methods');
       expect(result).toBeNull();
+    });
+
+    it('skips a higher-confidence placeholder and returns the next verified entry', async () => {
+      if (!dbAvailable) return;
+      const placeholder = await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Blocking placeholder`,
+        answer: 'NEEDS_BUSINESS_VERIFICATION',
+        tags: ['horarios', 'store_hours'],
+        confidence: 1,
+        active: true,
+      });
+      const verified = await knowledgeBaseService.createEntry({
+        category: 'store_info',
+        question: `[TEST-${testTimestamp}] Verified after placeholder`,
+        answer: 'HORAS_VERIFICADAS',
+        tags: ['horarios', 'store_hours'],
+        confidence: 0.95,
+        active: true,
+      });
+
+      const result = await knowledgeBaseService.getVerifiedAnswerForIntent('store_hours');
+      expect(result?.entryId).toBe(verified.id);
+
+      await knowledgeBaseService.deactivateEntry(placeholder.id);
+      await knowledgeBaseService.deactivateEntry(verified.id);
     });
   });
 

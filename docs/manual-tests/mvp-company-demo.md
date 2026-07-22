@@ -69,7 +69,7 @@ Nine intents reply safely with company-configured templates:
 
 For **reply** actions: the reply text is determined, an outbound message is stored, and `attemptWhatsAppDelivery()` is called. In `dry_run` mode, delivery is simulated — `sent=false`, `reason=dry_run`, and `wouldSend` contains the exact text that would go to WhatsApp.
 
-For **escalate** actions: the conversation status changes to `ESCALATED`, an escalation record is created, and **no WhatsApp reply is sent**. The trace has no `outboundDelivery` field (it is absent, not null).
+For **escalate** actions: the conversation status changes to `ESCALATED`, an escalation record is created, and a deterministic handoff acknowledgement is stored for the customer. Delivery remains feature-gated and is represented as `dry_run` in the safe demo.
 
 ---
 
@@ -358,11 +358,11 @@ Present these points while walking through the demo:
 
 5. **"When something needs a human — a complaint, a stock question, a price question — it escalates automatically instead of guessing."** — Show Demos 7-8. Point at `action: "escalate"` and explain that the bot never invents stock levels, prices, or handles complaints alone.
 
-6. **"Everything we're seeing now works without Meta or any external service."** — Explain `dry_run` mode. The backend is fully functional; only WhatsApp delivery is simulated.
+6. **"These local scenarios work without Meta or any external service."** — Explain `dry_run` mode. This proves the backend flow, not live Meta activation.
 
 7. **"When you're ready to go live, we add Meta credentials — same code, no rewrites."** — Explain the path from demo to production.
 
-8. **"The assistant is fully configurable — your shop name, categories, hours, and policies live in a simple file. Change them anytime."** — Show `.env` or mention `COMPANY_NAME`, `COMPANY_PRODUCT_CATEGORIES`, etc.
+8. **"Each installation has one configurable company profile — name, categories, hours and policies."** — Show `.env` or mention `COMPANY_NAME`, `COMPANY_PRODUCT_CATEGORIES`, etc.
 
 ---
 

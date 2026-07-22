@@ -59,4 +59,4 @@ Sends email notifications via SMTP (Gmail-compatible) when there are OPEN escala
 | `004b-simulated-message-flow.json` | API contract validation | Uses localhost backend, no real WhatsApp |
 | `008-escalation-email-notification.json` | Escalation email notification | Sends email for OPEN escalations via SMTP |
 
-*Full WhatsApp + AI workflow implementation in later phases.*
+*Live WhatsApp orchestration is not present in these exports; the backend owns current webhook, decision and outbound code.*

@@ -217,6 +217,7 @@ describe('sendEscalationEmail', () => {
 
 describe('Escalations Integration Tests', () => {
   let testConversationId: string;
+  let testCustomerId: string;
 
   beforeAll(async () => {
     dbAvailable = await checkDb();
@@ -224,9 +225,10 @@ describe('Escalations Integration Tests', () => {
       // Create a test conversation to use for escalation tests
       const customer = await prisma.customer.create({
         data: {
-          phone: `+549${Date().substring(0, 10)}`, // unique-ish phone
+          phone: `+549${String(Date.now()).slice(-10)}`,
         },
       });
+      testCustomerId = customer.id;
       const conversation = await prisma.conversation.create({
         data: {
           customerId: customer.id,
@@ -241,6 +243,9 @@ describe('Escalations Integration Tests', () => {
 
   afterAll(async () => {
     if (dbAvailable) {
+      if (testCustomerId) {
+        await prisma.customer.delete({ where: { id: testCustomerId } });
+      }
       await prisma.$disconnect();
     }
   });

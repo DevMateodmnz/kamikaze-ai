@@ -48,6 +48,15 @@ describe('classifyIntentWithFallback — intentSource tracking', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedRouter.classifyIntent.mockReset();
+    mockedRouter.generateReply.mockReset();
+    mockedRouter.summarize.mockReset();
+    mockedRouter.extractLeadData.mockReset();
+    mockWhatsAppSender.attemptWhatsAppDelivery.mockReset();
+    mockWhatsAppSender.attemptWhatsAppDelivery.mockResolvedValue({
+      sent: false,
+      reason: 'disabled' as const,
+    });
   });
 
   afterEach(() => {
@@ -167,8 +176,9 @@ async function checkDb(): Promise<boolean> {
 
 let testTimestamp = Date.now();
 // Short phone suffix — Date.now() is 13 digits but DB/validator limits to ~18 chars total.
-// Use first 6 digits of timestamp to stay within limits.
-const shortPhoneId = String(testTimestamp).slice(0, 6);
+// Use the changing tail rather than the effectively static year prefix so
+// consecutive Vitest invocations cannot reuse an earlier discovery context.
+const shortPhoneId = String(testTimestamp).slice(-6);
 
 describe('processInboundMessage — trace integration tests', () => {
   const mockedRouter = vi.mocked(aiGatewayRouter);
@@ -178,11 +188,28 @@ describe('processInboundMessage — trace integration tests', () => {
   });
 
   afterAll(async () => {
+    if (dbAvailable) {
+      await prisma.customer.deleteMany({
+        where: { phone: { endsWith: shortPhoneId } },
+      });
+      await prisma.knowledgeBaseEntry.deleteMany({
+        where: { question: { startsWith: `[TEST-${shortPhoneId}]` } },
+      });
+    }
     await prisma.$disconnect();
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedRouter.classifyIntent.mockReset();
+    mockedRouter.generateReply.mockReset();
+    mockedRouter.summarize.mockReset();
+    mockedRouter.extractLeadData.mockReset();
+    mockWhatsAppSender.attemptWhatsAppDelivery.mockReset();
+    mockWhatsAppSender.attemptWhatsAppDelivery.mockResolvedValue({
+      sent: false,
+      reason: 'disabled' as const,
+    });
   });
 
   afterEach(() => {
@@ -574,7 +601,8 @@ describe('processInboundMessage — trace integration tests', () => {
     );
 
     const testPhone = `+5493812377${shortPhoneId}`;
-    const testMessage = '¿Tienen MTB rodado 29 en color negro? Necesito para este finde.';
+    const testMessage =
+      '¿Tienen MTB rodado 29 en color negro? Necesito confirmar disponibilidad para este fin de semana y también saber si hay alternativas del mismo rodado, talle y uso, porque no quiero reservar un modelo equivocado antes de hablar con una persona.';
 
     const result = await processInboundMessage({
       from: testPhone,
@@ -601,6 +629,13 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(escalation!.summary).toContain('ai');
     // Verify long message truncation in summary
     expect(escalation!.summary).toContain('...');
+
+    const handoff = await prisma.message.findUnique({
+      where: { id: result.processing!.outboundMessageId! },
+    });
+    expect(handoff?.direction).toBe('OUTBOUND');
+    expect(handoff?.content).toContain('asesor');
+    expect(result.processing!.replyText).toContain('asesor');
   });
 
   it('escalation for human_request stores full operator context with deterministic source', async () => {
@@ -937,11 +972,23 @@ describe('processInboundMessage — trace integration tests', () => {
 
     const step2 = await processInboundMessage({
       from: testPhone,
-      text: 'La quiero para montaña, rodado 29, presupuesto 300 mil',
+      text: 'Prefiero la opción negra para uso cotidiano',
     });
 
     expect(step2.processing!.action).toBe('escalate');
     expect(step2.processing!.escalationReason).toBe('product_discovery');
+    expect(step2.processing!.replyText).toContain('asesor');
+    expect(step2.processing!.outboundMessageId).toBeTruthy();
+
+    const messages = await prisma.message.findMany({
+      where: { conversationId: step2.conversationId },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(messages).toHaveLength(4);
+    expect(messages.at(-1)).toMatchObject({
+      direction: 'OUTBOUND',
+      content: expect.stringContaining('asesor'),
+    });
 
     // Escalation record includes discovery context
     const escalation = await escalationsService.getEscalationById(
@@ -950,7 +997,7 @@ describe('processInboundMessage — trace integration tests', () => {
     expect(escalation).not.toBeNull();
     expect(escalation!.reason).toBe('product_discovery');
     expect(escalation!.customerMessage).toContain('¿Tienen MTB para montaña?');
-    expect(escalation!.customerMessage).toContain('La quiero para montaña');
+    expect(escalation!.customerMessage).toContain('Prefiero la opción negra');
     expect(escalation!.summary).toContain('Product discovery handoff');
     expect(escalation!.summary).toContain('¿Tienen MTB para montaña?');
     expect(escalation!.summary).toContain('Recommended action');
@@ -1204,7 +1251,7 @@ describe('processInboundMessage — trace integration tests', () => {
     });
 
     mockedRouter.classifyIntent.mockResolvedValueOnce({
-      intent: 'unknown',
+      intent: 'general',
       confidence: 0.3,
     });
     mockedRouter.summarize.mockResolvedValueOnce({
@@ -1220,7 +1267,7 @@ describe('processInboundMessage — trace integration tests', () => {
 
     const step2 = await processInboundMessage({
       from: testPhone,
-      text: 'La necesito para andar en la ciudad',
+      text: 'xzyyzz fdsfsd',
     });
 
     expect(step2.processing!.action).toBe('escalate');
@@ -1531,7 +1578,7 @@ describe('processInboundMessage — trace integration tests', () => {
     vi.unstubAllEnvs();
   });
 
-  it('escalation path does not attempt WhatsApp delivery', async () => {
+  it('escalation path persists and safely delivers a deterministic handoff', async () => {
     if (!dbAvailable) return;
     vi.stubEnv('WHATSAPP_OUTBOUND_ENABLED', 'true');
     vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'test-token');
@@ -1554,12 +1601,19 @@ describe('processInboundMessage — trace integration tests', () => {
       text: 'Estoy enojado con el servicio',
     });
 
-    // Escalation path → no outbound reply → no delivery attempt
-    expect(mockWhatsAppSender.attemptWhatsAppDelivery).not.toHaveBeenCalled();
+    expect(mockWhatsAppSender.attemptWhatsAppDelivery).toHaveBeenCalledTimes(1);
+    expect(mockWhatsAppSender.attemptWhatsAppDelivery).toHaveBeenCalledWith(
+      expect.stringContaining('asesor'),
+      expect.any(String)
+    );
 
-    // Trace should NOT have outboundDelivery for escalation
     const trace = result.processing!.trace!;
-    expect(trace.outboundDelivery).toBeUndefined();
+    expect(trace.outboundDelivery).toEqual({
+      attempted: false,
+      sent: false,
+      reason: 'disabled',
+    });
+    expect(result.processing!.outboundMessageId).toBeTruthy();
     // Escalation trace includes email notification metadata
     expect(trace.emailNotification).toBeDefined();
     expect(trace.emailNotification!.reason).toBe('email_disabled');

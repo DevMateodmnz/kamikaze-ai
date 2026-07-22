@@ -263,7 +263,7 @@ describe('Decision Engine', () => {
         const decision = makeDecision(intent, 0.8, testProfile);
         expect(decision.action).toBe('escalate');
         expect(decision.escalationReason).toBeTruthy();
-        expect(decision.replyText).toBeNull();
+        expect(decision.replyText).toContain('asesor');
         expect(decision.simulated).toBe(false);
       });
     }
@@ -314,7 +314,7 @@ describe('Decision Engine', () => {
       const decision = makeDecision('unknown', 0.5, testProfile);
       expect(decision.action).toBe('escalate');
       expect(decision.escalationReason).toBe('unknown');
-      expect(decision.replyText).toBeNull();
+      expect(decision.replyText).toContain('asesor');
     });
   });
 

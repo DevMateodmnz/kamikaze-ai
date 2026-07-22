@@ -1,7 +1,9 @@
 // Test setup - runs before each test file
 // Set environment variables for tests
 
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
+// Keep the historical local default, but allow CI and disposable test
+// databases to provide an isolated target without editing this file.
+process.env.DATABASE_URL ??= 'postgresql://test:test@localhost:5432/test_db';
 process.env.NODE_ENV = 'test';
 process.env.PORT = '3000';
 process.env.LOG_LEVEL = 'info';

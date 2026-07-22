@@ -343,9 +343,9 @@ AI_REPLIES_ENABLED=true
 # Also requires a valid AI provider key (e.g., MINIMAX_API_KEY)
 ```
 
-### Lint has pre-existing issues
+### Lint baseline
 
-The codebase currently has 69 errors and 65 warnings from ESLint, all pre-existing in files not touched by recent hardening PRs. `npm run build` and `npm test` are clean. This is a known baseline — not a blocker for demo or deployment.
+The historical lint debt was resolved during the customer-pilot checkpoint. Still run lint for the exact commit being presented; only an exit code of zero with no findings is green evidence.
 
 ---
 
@@ -356,7 +356,7 @@ Run these before demo or handoff:
 ```bash
 cd backend
 
-# Full test suite (should be 509/510, 23 suites — 1 pre-existing DB credential mismatch)
+# Full test suite against an isolated test database
 npm test
 
 # TypeScript build (should complete with no errors)
@@ -365,7 +365,7 @@ npm run build
 # Whitespace check
 git diff --check
 
-# Lint (69 errors + 65 warnings pre-existing — known baseline)
+# Lint (must be reported truthfully)
 npm run lint
 ```
 
@@ -373,10 +373,10 @@ npm run lint
 
 | Check | Expected |
 |-------|----------|
-| `npm test` | 509/510 passed, 23 suites (1 pre-existing DB credential issue) |
-| `npm run build` | Clean (0 errors) |
-| `git diff --check` | Clean |
-| `npm run lint` | 69 errors + 65 warnings (pre-existing baseline) |
+| `npm test` | Record current exit code and totals against an isolated DB |
+| `npm run build` | Must exit 0 |
+| `git diff --check` | Must exit 0 |
+| `npm run lint` | Must exit 0 with 0 errors and 0 warnings |
 
 ---
 

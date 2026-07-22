@@ -296,22 +296,19 @@ export async function getVerifiedAnswerForIntent(
       // Intent-specific: only match entries tagged for this intent
       tags: { hasSome: relevantTags },
     },
-    take: 1,
     orderBy: { confidence: 'desc' },
   });
 
   if (entries.length === 0) return null;
 
-  const entry = entries[0]!;
-
-  // Check for placeholder markers
-  if (
-    entry.answer.includes('NEEDS_BUSINESS_VERIFICATION') ||
-    entry.answer.includes('POR CONFIRMAR') ||
-    entry.answer.includes('[PLACEHOLDER]')
-  ) {
-    return null;
-  }
+  // A placeholder must not block a lower-confidence verified answer.
+  const entry = entries.find(
+    (candidate) =>
+      !candidate.answer.includes('NEEDS_BUSINESS_VERIFICATION') &&
+      !candidate.answer.includes('POR CONFIRMAR') &&
+      !candidate.answer.includes('[PLACEHOLDER]')
+  );
+  if (!entry) return null;
 
   return { answer: entry.answer, entryId: entry.id };
 }

@@ -19,9 +19,9 @@
   },
   {
     "_scenario": "3-unknown-random-input",
-    "_description": "Nonsense input — should classify as unknown and return template fallback reply.",
+    "_description": "Nonsense input — should classify as unknown and escalate safely.",
     "_expectedIntent": "unknown",
-    "_expectedReplySource": "template",
+    "_expectedReplySource": "escalation",
     "from": "+5490000000003",
     "text": "asdfghjkl qwerty zxcvbnm",
     "timestamp": "1700000003"
@@ -104,7 +104,7 @@
     "_expectedIntent": "price_question",
     "_expectedReplySource": "escalation",
     "from": "+5490000000012",
-    "text": "¿Cuánto sale la bicicleta de ruta modelo Pro?",
+    "text": "¿Cuanto sale ese modelo?",
     "timestamp": "1700000012"
   },
   {
@@ -158,10 +158,10 @@
   {
     "_scenario": "18-conversation-sequence-customer-a-msg2",
     "_description": "Multi-turn conversation: same phone number, message 2 of 3.",
-    "_expectedIntent": "product_interest",
+    "_expectedIntent": "store_hours",
     "_expectedReplySource": "template",
     "from": "+5490000000020",
-    "text": "Me interesa una de ruta, algo liviano",
+    "text": "¿Cuáles son los horarios de atención?",
     "timestamp": "1700000021"
   },
   {

@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // DB-backed suites share one disposable schema; keep files sequential so
+    // setup/cleanup from one suite cannot invalidate another suite's rows.
+    fileParallelism: false,
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',

@@ -140,18 +140,18 @@ curl -X POST http://localhost:3000/api/v1/messages/process \
 # → intent: product_interest, action: reply
 ```
 
-### 4. Escalation (no outbound delivery)
+### 4. Escalation with safe handoff acknowledgement
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/messages/process \
   -H "Content-Type: application/json" \
   -d '{"from":"+15550000001","text":"Quiero hablar con un humano urgente"}'
-# → intent: human_request, action: escalate, no outboundDelivery in trace
+# → intent: human_request, action: escalate, outboundDelivery.reason: dry_run
 ```
 
 ## How to Explain the Limitation
 
-> "Real WhatsApp delivery requires a valid Meta access token and an authorized recipient phone number registered in Meta's sandbox. What we're demonstrating now is the **full backend pipeline** — message intake → intent detection → decision making → reply generation → outbound storage. The only thing simulated is the final Meta API call. When we plug in real Meta credentials, this exact same code delivers to WhatsApp."
+> "Real WhatsApp delivery requires Meta access and an authorized recipient. This demo proves the local backend pipeline and simulates final delivery. Live inbound, outbound and provider evidence still require a controlled Meta activation."
 
 ## Cleanup
 

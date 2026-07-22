@@ -1,7 +1,7 @@
 # Kamikaze AI WhatsApp - Architecture Document
 
-**Status**: MVP Release Candidate
-**Version**: 1.0 — Updated 2026-06-11
+**Status**: Local customer demo ready; live Meta pilot pending validation
+**Version**: 1.1 — Updated 2026-07-22
 
 ---
 
@@ -9,7 +9,7 @@
 
 ### 1.1 Purpose
 
-AI-powered WhatsApp sales assistant for Kamikaze Bikes, a bicycle shop in Tucumán, Argentina. The system receives WhatsApp messages from potential customers, provides AI-powered responses about products and services, qualifies leads, and escalates to human agents when needed.
+Configurable WhatsApp sales/support assistant for one company per deployment. The backend can receive WhatsApp-shaped messages, answer safe verified questions deterministically, optionally use an AI provider, and escalate unsupported requests. Real Meta connectivity is implemented in code but has no provider proof in this repository.
 
 ### 1.2 Business Context
 
@@ -21,10 +21,10 @@ AI-powered WhatsApp sales assistant for Kamikaze Bikes, a bicycle shop in Tucum�
 ### 1.3 Architecture Principles
 
 1. **Safety First**: Never hallucinate stock, prices, discounts, warranty, or delivery promises
-2. **Provider Agnostic**: AI provider is swappable via environment configuration
+2. **Provider Boundary**: AI access stays behind one gateway; only MiniMax has an adapter today
 3. **Clean Separation**: n8n orchestrates, backend decides
-4. **Observable**: Every AI call logged for cost and quality control
-5. **Graceful Degradation**: AI failures trigger escalation, never silent failure
+4. **Traceable Processing**: message results expose intent, reply source and delivery outcome
+5. **Graceful Degradation**: AI failures fall back to deterministic classification/replies or escalation
 
 ---
 
@@ -33,7 +33,8 @@ AI-powered WhatsApp sales assistant for Kamikaze Bikes, a bicycle shop in Tucum�
 ### 2.1 High-Level View
 
 ```
-Customer → WhatsApp Cloud API → n8n (orchestration) → Backend (business logic)
+Customer → WhatsApp Cloud API → Backend webhook (business logic)
+                                  ↕ optional n8n orchestration
                                                               ↓
                                               AI Gateway ← Provider
                                                               ↓
@@ -46,13 +47,11 @@ Customer → WhatsApp Cloud API → n8n (orchestration) → Backend (business lo
 
 ### 2.2 n8n (Orchestration Layer)
 
-n8n handles:
-- Receiving webhooks from WhatsApp Cloud API
-- Normalizing payloads
-- Calling backend REST API
-- Sending WhatsApp replies
-- Routing to escalation workflows (legacy; current MVP sends email directly from backend)
-- Future optional: Slack, Discord, Telegram, CRM integrations
+n8n currently has two versioned workflow exports:
+- a manual simulated message flow that calls backend REST endpoints;
+- an escalation-email workflow that calls authenticated backend endpoints.
+
+There is no versioned, provider-validated n8n workflow for live WhatsApp inbound/outbound. The backend itself owns webhook authenticity, message decisions, persistence and its feature-gated outbound sender.
 
 n8n does NOT:
 - Call AI providers directly
@@ -70,7 +69,7 @@ The backend owns:
 - Intent classification
 - Knowledge base retrieval
 - Escalation decisions
-- Analytics and audit logging
+- Processing trace metadata (analytics service remains partial)
 - API contracts consumed by n8n
 
 ---
@@ -122,9 +121,13 @@ Body: {
 }
 Response: {
   conversationId: string;
-  action: 'reply' | 'escalate';
-  replyText?: string;
-  escalationId?: string;
+  duplicate: boolean;
+  processing: {
+    action: 'reply' | 'escalate';
+    replyText: string | null;
+    escalationId: string | null;
+    trace: MessageProcessingTrace;
+  } | null;
 }
 
 // Get conversation
@@ -133,14 +136,13 @@ Response: {
   id: string;
   customerPhone: string;
   status: 'ACTIVE' | 'ESCALATED' | 'CLOSED';
-  messages: Message[];
   createdAt: string;
 }
 
 // Escalate
 POST /api/v1/conversations/:id/escalate
 Body: { reason: string; suggestedReply?: string; }
-Response: { escalationId: string; notificationSent: boolean; }
+Response: { success: true; escalation: Escalation; conversationId: string; }
 
 // Health
 GET /health
@@ -153,12 +155,11 @@ GET /health/ready   // Checks DB connectivity
 
 ### 4.1 Design Principles
 
-1. **Provider-agnostic interface**: `generateReply()`, `classifyIntent()`, `summarize()`, `extractLeadData()`
-2. **Provider selection via environment**: `AI_PROVIDER=minimax|openai|gemini|anthropic|local`
-3. **Fallback support**: Primary provider fails → use fallback provider
-4. **Fail-safe escalation**: Low confidence or risky content → escalate to human
-5. **Cost observability**: Every call logged with token count and calculated cost
-6. **Versioned prompts**: Prompts stored as files, not code strings
+1. **Provider interface**: `generateReply()`, `classifyIntent()`, `summarize()`, `extractLeadData()`.
+2. **Implemented adapter**: MiniMax. Other provider names are reserved but currently throw a clear not-implemented error.
+3. **Application fallback**: classification computes a deterministic result first and uses it when AI is disabled, unavailable, low-confidence or unmappable.
+4. **Reply guardrails**: optional AI replies are feature-gated and rejected when unsafe; deterministic KB/templates remain available.
+5. **Known gaps**: configured fallback-provider routing, complete AI interaction logging/cost tracking and external provider validation are not complete.
 
 ### 4.2 Supported Operations
 
@@ -267,11 +268,8 @@ BusinessRule (standalone)
 
 | Workflow | Purpose |
 |----------|---------|
-| 001-inbound-whatsapp | Receive WhatsApp webhook, normalize, call backend |
-| 002-process-message | Call backend /inbound endpoint, route response |
-| 003-send-reply | Send WhatsApp reply via Cloud API |
-| 004-escalation | Notify human via email (SMTP/Gmail) |
-| 005-error-handler | Log errors, retry, alert |
+| 004b-simulated-message-flow | Manual, deterministic backend API simulation |
+| 008-escalation-email-notification | Fetch open escalations, call backend SMTP endpoint, mark notified after success |
 
 ### 6.2 Credential Management
 
@@ -299,7 +297,7 @@ BusinessRule (standalone)
 
 ### 7.2 Implemented Solution
 
-Email notification via SMTP (Gmail-compatible) through n8n workflow 008-escalation-email-notification. The n8n workflow fetches OPEN escalations, formats an HTML email, sends it via the backend internal email endpoint (`POST /api/v1/internal/send-email`), and marks the escalation as NOTIFIED only after successful delivery.
+The backend processing path can notify via SMTP directly when `ESCALATION_EMAIL_ENABLED=true`, and leaves the escalation OPEN when delivery fails. A legacy/optional n8n workflow can also fetch OPEN escalations, call the backend internal email endpoint, and mark them notified after success. Real SMTP delivery remains awaiting provider validation.
 
 Notifications include: escalation ID, conversation ID, customer phone, reason, reason detail, status, and creation timestamp.
 
@@ -334,12 +332,7 @@ All secrets via environment variables. `.env` gitignored. Production uses Docker
 
 ### 8.4 Data Retention
 
-| Data | Retention |
-|------|----------|
-| Messages | 90 days |
-| Conversations | 90 days after close |
-| AI Interaction Logs | 12 months |
-| Audit Logs | 24 months |
+No automated retention or deletion policy is implemented. Retention periods must be decided and implemented before production operation.
 
 ---
 
@@ -351,7 +344,7 @@ All secrets via environment variables. `.env` gitignored. Production uses Docker
 | **Phase 1** | Messages module, customers, conversations, intent detection, simulated WhatsApp |
 | **Phase 2** | Knowledge base with store information |
 | **Phase 3** | AI Gateway, MiniMax adapter, guardrails, AI replies |
-| **Phase 4** | Real WhatsApp webhook, email escalation (PR-008), human resolution |
+| **Phase 4** | Controlled real Meta inbound/outbound validation, approved business KB and human operating procedure (pending) |
 
 ---
 
@@ -435,7 +428,7 @@ All secrets via environment variables. `.env` gitignored. Production uses Docker
 - No real escalation notification
 - No real analytics logging
 
-**Validation results**:
+**Historical PR-002 validation snapshot (not the current repository baseline)**:
 - `npm run build`: ✅ Passed (0 errors)
 - `npm run lint`: ✅ Passed (0 errors, 52 warnings - all expected for scaffold)
 - `npm test`: ✅ Passed (16 tests)
@@ -443,8 +436,8 @@ All secrets via environment variables. `.env` gitignored. Production uses Docker
 - `docker compose up -d postgres`: ✅ Passed
 - Health endpoints: ✅ All return 200
 
-**Warnings explanation**:
-All 52 lint warnings are about async functions without `await` expressions. This is expected and acceptable for scaffold code because:
+**Historical warnings explanation**:
+At that checkpoint, all 52 lint warnings were about async functions without `await` expressions. They were accepted temporarily for the scaffold because:
 1. Functions are intentionally async for future implementation
 2. They will be called uniformly when real implementations are added
 3. Each function currently throws NotImplemented immediately

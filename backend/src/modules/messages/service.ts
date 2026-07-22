@@ -11,7 +11,10 @@ import type { StoredMessage, MessageProcessingTrace } from './types.js';
 import { customersService } from '../customers/service.js';
 import { conversationsService } from '../conversations/service.js';
 import { detectIntent } from '../intent-detection/detector.js';
-import { makeDecision } from '../intent-detection/decision-engine.js';
+import {
+  ESCALATION_HANDOFF_REPLY,
+  makeDecision,
+} from '../intent-detection/decision-engine.js';
 import { getVerifiedAnswerForIntent } from '../knowledge-base/service.js';
 import { escalationsService } from '../escalations/service.js';
 import type { Intent } from '../intent-detection/types.js';
@@ -307,7 +310,7 @@ async function generateSuggestedReply(
   }
 
   try {
-    const messages: Array<{ role: 'customer'; content: string }> = [
+    const messages: { role: 'customer'; content: string }[] = [
       { role: 'customer', content: customerMessage },
     ];
 
@@ -318,7 +321,7 @@ async function generateSuggestedReply(
 
     const result = await aiGatewayRouter.summarize({
       conversationId: `escalation-${Date.now()}`,
-      messages: messages as Parameters<typeof aiGatewayRouter.summarize>[0]['messages'],
+      messages: messages,
       maxLength: 300,
     });
 
@@ -392,7 +395,7 @@ export async function processInboundMessage(
     if (decision.action === 'escalate' && detection.intent !== 'unknown') {
       // Escalation intent during discovery → escalate normally,
       // discovery context added to summary. Clear discovery state.
-      void conversationsService.updateConversationContext(result.conversation.id, {
+      await conversationsService.updateConversationContext(result.conversation.id, {
         discoveryState: null,
         discoveryOriginalMessage: null,
       });
@@ -405,7 +408,7 @@ export async function processInboundMessage(
       if (discoveredSafeReplyIntents.includes(detection.intent)) {
         // Customer changed topic → reply normally, clear discovery
         discoveryContext = null;
-        void conversationsService.updateConversationContext(result.conversation.id, {
+        await conversationsService.updateConversationContext(result.conversation.id, {
           discoveryState: null,
           discoveryOriginalMessage: null,
         });
@@ -416,13 +419,13 @@ export async function processInboundMessage(
           action: 'escalate',
           intent: detection.intent,
           confidence: detection.confidence,
-          replyText: null,
+          replyText: ESCALATION_HANDOFF_REPLY,
           escalationReason: 'product_discovery',
           simulated: false,
           outboundMessageId: null,
         };
         // Clear discovery state
-        void conversationsService.updateConversationContext(result.conversation.id, {
+        await conversationsService.updateConversationContext(result.conversation.id, {
           discoveryState: null,
           discoveryOriginalMessage: null,
         });
@@ -502,7 +505,7 @@ export async function processInboundMessage(
 
     // ── Product discovery state (PR-013): save state after product_interest reply ──
     if (detection.intent === 'product_interest' && !discoveryActive) {
-      void conversationsService.updateConversationContext(result.conversation.id, {
+      await conversationsService.updateConversationContext(result.conversation.id, {
         discoveryState: 'AWAITING_PRODUCT_DETAILS',
         discoveryOriginalMessage: input.text,
       });
@@ -582,6 +585,34 @@ export async function processInboundMessage(
       sent: emailResult.sent,
       reason: emailResult.reason,
     };
+
+    // Confirm the handoff to the customer without inventing an answer.
+    // Persist before attempting delivery so the conversation remains auditable
+    // even when Meta is unavailable.
+    if (effectiveDecision.replyText) {
+      const outbound = await storeOutboundMessage({
+        conversationId: result.conversation.id,
+        content: effectiveDecision.replyText,
+        intent: detection.intent,
+        confidence: detection.confidence,
+        aiProvider: 'deterministic',
+        tokensUsed: 0,
+      });
+      outboundMessageId = outbound.id;
+
+      const deliveryResult = await attemptWhatsAppDelivery(
+        effectiveDecision.replyText,
+        result.customer.phone
+      );
+      outboundDelivery = {
+        attempted: deliveryResult.reason !== 'disabled' && deliveryResult.reason !== 'config_missing',
+        sent: deliveryResult.sent,
+        reason: deliveryResult.reason,
+        ...(deliveryResult.mode && { mode: deliveryResult.mode }),
+        ...(deliveryResult.waMessageId && { waMessageId: deliveryResult.waMessageId }),
+        ...(deliveryResult.wouldSend && { wouldSend: deliveryResult.wouldSend }),
+      };
+    }
   }
 
   const trace: MessageProcessingTrace = {
@@ -607,9 +638,9 @@ export async function processInboundMessage(
     processing: {
       intent: detection.intent,
       confidence: detection.confidence,
-      action: decision.action,
-      replyText: decision.replyText,
-      escalationReason: decision.escalationReason,
+      action: effectiveDecision.action,
+      replyText: effectiveDecision.replyText,
+      escalationReason: effectiveDecision.escalationReason,
       outboundMessageId,
       escalationId,
       trace,

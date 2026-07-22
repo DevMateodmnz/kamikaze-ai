@@ -168,7 +168,7 @@ Safe FAQ entries (verified):
 ## Why No AI Yet
 
 KB data is deterministic and pre-verified. AI integration (MiniMax) comes after:
-1. Real WhatsApp webhook is implemented
+1. Real WhatsApp webhook code exists and has local tests; provider validation remains pending
 2. KB has verified business data
 3. Decision layer validated in production-like environment
 

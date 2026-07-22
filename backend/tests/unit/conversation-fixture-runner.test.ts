@@ -74,17 +74,27 @@ async function checkDb(): Promise<boolean> {
 describe('Conversation fixture runner', () => {
   const mockedRouter = vi.mocked(aiGatewayRouter);
   let testTimestamp = Date.now();
+  const runPhoneSuffix = String(testTimestamp).slice(-6);
 
   beforeAll(async () => {
     dbAvailable = await checkDb();
   });
 
   afterAll(async () => {
+    if (dbAvailable) {
+      await prisma.customer.deleteMany({
+        where: { phone: { endsWith: runPhoneSuffix } },
+      });
+    }
     await prisma.$disconnect();
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedRouter.classifyIntent.mockReset();
+    mockedRouter.generateReply.mockReset();
+    mockedRouter.summarize.mockReset();
+    mockedRouter.extractLeadData.mockReset();
     vi.stubEnv('AI_REPLIES_ENABLED', 'false');
   });
 
@@ -95,7 +105,7 @@ describe('Conversation fixture runner', () => {
 
   // ── Run each fixture through processInboundMessage ─────────────────
 
-  for (const fixture of runnableFixtures) {
+  for (const [fixtureIndex, fixture] of runnableFixtures.entries()) {
     const scenario = fixture._scenario ?? 'unknown';
     const expectedIntent = fixture._expectedIntent!;
     const expectedReplySource = fixture._expectedReplySource;
@@ -131,7 +141,7 @@ describe('Conversation fixture runner', () => {
 
       const result = await processInboundMessage({
         whatsappMessageId: uniqueWamid,
-        from: fixture.from,
+        from: `+549100${String(fixtureIndex).padStart(2, '0')}${runPhoneSuffix}`,
         text: fixture.text,
       });
 
@@ -171,7 +181,7 @@ describe('Conversation fixture runner', () => {
       allFixtures.find((f) => f._scenario === '19-conversation-sequence-customer-a-msg3'),
     ];
 
-    // Verify all 3 fixtures exist and share the same phone
+    // Verify all 3 fixtures exist and represent the same fixture customer.
     expect(multiFixtures.every((f) => f != null)).toBe(true);
     const phones = new Set(multiFixtures.map((f) => f!.from));
     expect(phones.size).toBe(1);
@@ -179,6 +189,7 @@ describe('Conversation fixture runner', () => {
     const { processInboundMessage } = await import(
       '../../src/modules/messages/service.js'
     );
+    const runPhone = `+549200000${runPhoneSuffix}`;
 
     const results: Awaited<ReturnType<typeof processInboundMessage>>[] = [];
     for (const fixture of multiFixtures) {
@@ -194,7 +205,7 @@ describe('Conversation fixture runner', () => {
 
       results.push(
         await processInboundMessage({
-          from: fixture!.from,
+          from: runPhone,
           text: fixture!.text,
         })
       );
@@ -250,11 +261,13 @@ describe('Conversation fixture runner', () => {
     const { processInboundMessage } = await import(
       '../../src/modules/messages/service.js'
     );
+    const duplicateMessageId = `${dupFixture.whatsappMessageId}-idempotency-${testTimestamp}`;
+    const duplicatePhone = `+549300000${runPhoneSuffix}`;
 
     // First send — should process normally
     const first = await processInboundMessage({
-      whatsappMessageId: dupFixture.whatsappMessageId,
-      from: dupFixture.from,
+      whatsappMessageId: duplicateMessageId,
+      from: duplicatePhone,
       text: dupFixture.text,
     });
     expect(first.duplicate).toBe(false);
@@ -262,8 +275,8 @@ describe('Conversation fixture runner', () => {
 
     // Second send — same whatsappMessageId → duplicate
     const second = await processInboundMessage({
-      whatsappMessageId: dupFixture.whatsappMessageId,
-      from: dupFixture.from,
+      whatsappMessageId: duplicateMessageId,
+      from: duplicatePhone,
       text: dupFixture.text,
     });
     expect(second.duplicate).toBe(true);

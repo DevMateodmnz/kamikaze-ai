@@ -1,6 +1,6 @@
 # Kamikaze AI WhatsApp Assistant
 
-AI-powered WhatsApp sales assistant for Kamikaze Bikes, a bicycle shop in Tucumán, Argentina.
+Configurable WhatsApp sales/support assistant with deterministic safe behavior and optional AI features.
 
 ## Architecture
 
@@ -49,10 +49,12 @@ curl http://localhost:3000/health/ready
 - [MVP Company Demo](docs/manual-tests/mvp-company-demo.md) — 5-minute demo runbook for presenting to a business
 - [WhatsApp Dry-Run Demo](docs/manual-tests/whatsapp-dry-run-demo.md) — technical dry-run walkthrough
 - [WhatsApp Live Sandbox](docs/manual-tests/whatsapp-outbound-sandbox.md) — Meta validation guide and preflight
+- [Customer Pilot Status (ES)](docs/product/customer-pilot-status-es.md)
+- [Customer Demo Runbook](docs/demo/customer-demo-runbook.md)
+- [Meta Live Activation Checklist](docs/integrations/meta-whatsapp-live-activation.md)
 - [Knowledge Base & Verified Data](docs/knowledge-base.md)
 - [Manual Test Fixtures](docs/manual-tests/conversation-flow-fixtures.md)
-- [AI Gateway Design](docs/ai-gateway.md)
-- [Human Escalation](docs/escalation.md)
+- [Human Escalation](docs/escalations.md)
 - [n8n Workflows](docs/workflows.md)
 
 ## Tech Stack
@@ -73,4 +75,4 @@ curl http://localhost:3000/health/ready
 | Phase 1 | Message processing with simulated WhatsApp endpoint |
 | Phase 2 | Knowledge base with store information |
 | Phase 3 | AI Gateway with controlled AI replies |
-| Phase 4 | Real WhatsApp integration and human escalation |
+| Phase 4 | Real WhatsApp activation and provider validation (pending) |

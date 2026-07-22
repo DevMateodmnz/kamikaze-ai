@@ -215,13 +215,13 @@ curl -X POST http://localhost:3000/api/v1/messages/process \
   -H "X-API-Key: $INTERNAL_API_KEY" \
   -d '{"whatsappMessageId":"wa-sandbox-003","from":"<YOUR_PHONE>","text":"Busco una MTB"}'
 
-# Escalation (should NOT trigger outbound delivery)
+# Escalation (stores and delivers a safe handoff acknowledgement)
 curl -X POST http://localhost:3000/api/v1/messages/process \
   -H "X-API-Key: $INTERNAL_API_KEY" \
   -d '{"whatsappMessageId":"wa-sandbox-004","from":"<YOUR_PHONE>","text":"Quiero hablar con un humano"}'
 ```
 
-For escalations, `outboundDelivery` should be **absent** from the trace.
+For escalations, `outboundDelivery` should describe the handoff acknowledgement. In sandbox dry-run it must be `reason=dry_run` and `sent=false`.
 
 ---
 
@@ -389,7 +389,7 @@ Safe things to report:
 - **WhatsApp sender tests**: 15/15 passing (disabled, config_missing, dry_run, delivered, delivery_failed)
 - **Message-processing trace tests**: outbound delivery trace present/absent correctly
 - **Dry-run demo mode**: working (simulated delivery, no Meta credentials)
-- **Full test suite**: 509/510 passing (1 pre-existing DB credential mismatch, not WhatsApp-related)
+- **Full test suite**: run against an isolated database and record current totals; do not reuse historical counts
 
 ### Real Meta Validation: ⏳ BLOCKED — Credentials Pending
 
@@ -630,6 +630,6 @@ When live validation is completed, fill in:
 | `outboundDelivery.reason` | delivered / delivery_failed |
 | `outboundDelivery.waMessageId` | wamid.xxxxxxxxxxxx / absent |
 | Test phone received reply | ✅ / ❌ |
-| Full test suite after | 509/510 (unchanged pre-existing) |
+| Full test suite after | Record the current isolated-database result |
 
 ---

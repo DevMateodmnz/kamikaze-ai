@@ -180,10 +180,9 @@ send_message() {
     echo -e "  escalation:    ${RED}${escalation_reason}${NC}"
   fi
 
-  # Outbound display depends on action.
-  # reply  → WhatsApp delivery was attempted (or simulated in dry_run).
-  # escalate → no WhatsApp reply is sent; escalation record created instead.
-  if [ "$action" = "reply" ]; then
+  # Both safe replies and escalation handoff acknowledgements are persisted
+  # and represented through the feature-gated delivery trace.
+  if [ "$action" = "reply" ] || [ "$action" = "escalate" ]; then
     local od_attempted od_sent od_reason
     od_attempted=$(json_field "$response" "processing.trace.outboundDelivery.attempted" "?")
     od_sent=$(json_field "$response" "processing.trace.outboundDelivery.sent" "?")
@@ -197,8 +196,6 @@ send_message() {
       exit 1
     fi
     echo -e "  outbound:      attempted=${od_attempted} sent=${od_sent} reason=${od_reason}"
-  elif [ "$action" = "escalate" ]; then
-    echo -e "  outbound:      ${YELLOW}n/a — escalation created, no WhatsApp reply sent${NC}"
   else
     echo -e "${RED}  ERROR: unexpected action='${action}'. Expected 'reply' or 'escalate'.${NC}"
     echo -e "${RED}  Full response follows:${NC}"

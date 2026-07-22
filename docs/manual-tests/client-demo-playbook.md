@@ -533,11 +533,9 @@ Para activar email, ver sección F paso 6.
 Si un cliente pregunta "¿y por qué no lo veo en mi WhatsApp?", explicar:
 > "Porque para que los mensajes lleguen a WhatsApp de verdad, necesitamos activar la cuenta de WhatsApp Business de tu negocio en Meta. Eso requiere una verificación que hacemos juntos. Esto que ves ahora es el motor funcionando — cuando conectemos Meta, el mismo código manda a WhatsApp."
 
-### Falla conocida en tests: DB credential
+### Validación técnica antes de presentar
 
-**Síntoma**: `npm test` muestra 509/510 tests pasando, con 1 falla pre-existente.
-
-**Explicación**: Es una falla documentada relacionada con credenciales de base de datos en un test de integración que espera una variable de entorno específica. No afecta la demo, el build, ni el funcionamiento. Es un baseline conocido.
+Use `cd backend && npm run demo:pilot`. El runner crea una base descartable y falla con código distinto de cero si no puede probar los cuatro escenarios. No cite conteos históricos de tests como si fueran el estado actual; registre la salida de la validación ejecutada para la presentación.
 
 ---
 

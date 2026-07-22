@@ -24,6 +24,9 @@ export interface DecisionResult {
   outboundMessageId: string | null;
 }
 
+export const ESCALATION_HANDOFF_REPLY =
+  'No quiero darte información incorrecta. Registré tu consulta para que un asesor continúe la conversación.';
+
 /**
  * Build reply templates interpolated with business profile data.
  *
@@ -130,7 +133,7 @@ export function makeDecision(
       action: 'escalate',
       intent,
       confidence,
-      replyText: null,
+      replyText: ESCALATION_HANDOFF_REPLY,
       escalationReason: ESCALATION_REASONS[intent],
       simulated: false,
       outboundMessageId: null,
