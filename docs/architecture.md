@@ -1,7 +1,7 @@
 # Kamikaze AI WhatsApp - Architecture Document
 
-**Status**: Local customer demo ready; live Meta pilot pending validation
-**Version**: 1.1 — Updated 2026-07-22
+**Status**: prueba local disponible; transporte Meta real pendiente de validación
+**Version**: 1.2 — Updated 2026-08-14
 
 ---
 
@@ -9,14 +9,15 @@
 
 ### 1.1 Purpose
 
-Configurable WhatsApp sales/support assistant for one company per deployment. The backend can receive WhatsApp-shaped messages, answer safe verified questions deterministically, optionally use an AI provider, and escalate unsupported requests. Real Meta connectivity is implemented in code but has no provider proof in this repository.
+Auditable WhatsApp sales/support operator for one company per deployment, aimed at Spanish-speaking SMBs. The backend can receive WhatsApp-shaped messages, answer safe verified questions deterministically, optionally use an AI provider, execute bounded workflows, persist delivery evidence and escalate unsupported requests. Real Meta connectivity is implemented in code but has no provider proof in this repository.
 
 ### 1.2 Business Context
 
-- **Business Type**: Retail bicycle shop with two physical branches
-- **Primary Channel**: WhatsApp (most customer inquiries come through WhatsApp)
-- **Sales Model**: Pre-sales consultation → physical store visit → purchase
-- **Key Priority**: Protect sales conversion by avoiding bad automated answers
+- **Market**: WhatsApp-heavy Spanish-speaking small and medium businesses
+- **Deployment model**: one configurable business per installation
+- **Primary channel**: official Meta WhatsApp Cloud API only
+- **Key priority**: protect operations and conversion through verified answers, bounded actions, human takeover and reconstructable evidence
+- **Fixtures**: bicycle-company examples are fictional demo data, not an approved customer roadmap or confidential dataset
 
 ### 1.3 Architecture Principles
 
@@ -25,6 +26,8 @@ Configurable WhatsApp sales/support assistant for one company per deployment. Th
 3. **Clean Separation**: n8n orchestrates, backend decides
 4. **Traceable Processing**: message results expose intent, reply source and delivery outcome
 5. **Graceful Degradation**: AI failures fall back to deterministic classification/replies or escalation
+6. **Official Transport Only**: no WhatsApp Web automation, QR scraping, browser puppeteering or unofficial libraries
+7. **Delivery Evidence**: provider callbacks are append-only and aggregate state cannot regress
 
 ---
 

@@ -7,7 +7,7 @@ Verify that the WhatsApp Cloud API outbound sender correctly delivers a customer
 Validate:
 1. Outbound message is stored before delivery attempt (store-first)
 2. WhatsApp Cloud API accepts the message
-3. `outboundDelivery.sent=true`, `reason='delivered'`, `waMessageId` present
+3. `outboundDelivery.sent=true`, `reason='accepted'`, `waMessageId` presente (aceptación API, no entrega)
 4. Test recipient receives the reply on their WhatsApp
 5. AI stays disabled (`aiIntentUsed=false`, `aiReplyUsed=false`)
 6. n8n/Gmail are not triggered
@@ -345,7 +345,7 @@ Before considering the outbound delivery verified:
 - [ ] `AI_CLASSIFICATION_ENABLED=false` confirmed
 - [ ] `outboundDelivery.attempted=true`
 - [ ] `outboundDelivery.sent=true`
-- [ ] `outboundDelivery.reason='delivered'`
+- [ ] `outboundDelivery.reason='accepted'`
 - [ ] `outboundDelivery.waMessageId` present (non-null Meta message ID)
 - [ ] Test phone received the reply on WhatsApp
 - [ ] No AI MiniMax calls in backend logs
@@ -427,7 +427,7 @@ Once Mateo obtains real Meta credentials:
 2. **Start backend in live mode**: `WHATSAPP_OUTBOUND_ENABLED=true WHATSAPP_OUTBOUND_MODE=live WHATSAPP_ENABLED=true npx tsx src/server.ts`
 3. **Configure Meta webhook**: Point to `https://<your-domain>/api/v1/security/whatsapp/webhook`
 4. **Send test message** from Meta sandbox phone
-5. **Verify trace**: `outboundDelivery.sent=true`, `outboundDelivery.reason=delivered`
+5. **Verify trace**: `outboundDelivery.sent=true`, `outboundDelivery.reason=accepted`; luego verificar callbacks y teléfono por separado
 6. **Run**: `npm test` to confirm no regressions
 
 ---

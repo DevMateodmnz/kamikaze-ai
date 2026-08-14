@@ -1,6 +1,8 @@
-# Kamikaze AI WhatsApp Assistant
+# Kamikaze AI — operador auditable para WhatsApp
 
-Configurable WhatsApp sales/support assistant with deterministic safe behavior and optional AI features.
+Kamikaze AI es un operador auditable de ventas y soporte para empresas hispanohablantes que trabajan intensamente por WhatsApp. Responde desde información verificada, ejecuta flujos acotados, conserva evidencia operativa y deriva a una persona cuando faltan datos o autorización. No es un chatbot genérico.
+
+La única integración de mensajería admitida es la **API oficial de WhatsApp Cloud de Meta**. La conexión real todavía no fue probada; los demos del repositorio son simulaciones explícitas.
 
 ## Architecture
 
@@ -50,6 +52,8 @@ curl http://localhost:3000/health/ready
 - [WhatsApp Dry-Run Demo](docs/manual-tests/whatsapp-dry-run-demo.md) — technical dry-run walkthrough
 - [WhatsApp Live Sandbox](docs/manual-tests/whatsapp-outbound-sandbox.md) — Meta validation guide and preflight
 - [Customer Pilot Status (ES)](docs/product/customer-pilot-status-es.md)
+- [Posicionamiento de producto](docs/product/product-positioning.md)
+- [Ciclo de estados y activación oficial de Meta](docs/integrations/meta-whatsapp-live-activation.md)
 - [Customer Demo Runbook](docs/demo/customer-demo-runbook.md)
 - [Meta Live Activation Checklist](docs/integrations/meta-whatsapp-live-activation.md)
 - [Knowledge Base & Verified Data](docs/knowledge-base.md)

@@ -439,7 +439,7 @@ Este script verifica que todas las variables de entorno, flags y tests estén li
 
 ### 5. Validar entrega saliente
 - Enviar un mensaje de prueba desde un teléfono sandbox de Meta
-- Verificar: `outboundDelivery.sent=true`, `outboundDelivery.reason=delivered`
+- Verificar: `outboundDelivery.sent=true`, `outboundDelivery.reason=accepted`; esto prueba aceptación de Meta, no entrega al teléfono.
 - Confirmar que el teléfono recibe la respuesta en WhatsApp
 
 ### 6. Activar notificaciones por email

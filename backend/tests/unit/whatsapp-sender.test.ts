@@ -154,7 +154,7 @@ describe('attemptWhatsAppDelivery', () => {
     const result = await attemptWhatsAppDelivery('Hola, ¿cómo estás?', '+5490000000000');
 
     expect(result.sent).toBe(true);
-    expect(result.reason).toBe('delivered');
+    expect(result.reason).toBe('accepted');
     expect(result.waMessageId).toBe('wamid.test123');
 
     // Verify the fetch call was correct
@@ -191,7 +191,7 @@ describe('attemptWhatsAppDelivery', () => {
     const result = await attemptWhatsAppDelivery('Hola', '+5490000000000');
 
     expect(result.sent).toBe(true);
-    expect(result.reason).toBe('delivered');
+    expect(result.reason).toBe('accepted');
     expect(result.mode).toBe('live');
   });
 

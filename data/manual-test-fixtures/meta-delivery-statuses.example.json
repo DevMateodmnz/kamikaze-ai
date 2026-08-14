@@ -1,0 +1,78 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA_FIXTURE_001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550000000",
+              "phone_number_id": "PHONE_NUMBER_FIXTURE_001"
+            },
+            "statuses": [
+              {
+                "id": "wamid.OFFLINE_FIXTURE_001",
+                "status": "sent",
+                "timestamp": "1786723200",
+                "recipient_id": "15550000001",
+                "conversation": {
+                  "id": "conversation.fixture.001",
+                  "expiration_timestamp": "1786809600",
+                  "origin": { "type": "service" }
+                },
+                "pricing": {
+                  "billable": false,
+                  "pricing_model": "PMP",
+                  "category": "service",
+                  "type": "free_customer_service"
+                }
+              },
+              {
+                "id": "wamid.OFFLINE_FIXTURE_002",
+                "status": "failed",
+                "timestamp": "1786723201",
+                "recipient_id": "15550000002",
+                "errors": [
+                  {
+                    "code": 131047,
+                    "title": "Re-engagement message",
+                    "message": "Fixture failure message",
+                    "error_data": { "details": "Sanitized fixture detail" }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "WABA_FIXTURE_001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "statuses": [
+              {
+                "id": "wamid.OFFLINE_FIXTURE_001",
+                "status": "delivered",
+                "timestamp": "1786723202",
+                "recipient_id": "15550000001"
+              },
+              {
+                "id": "wamid.OFFLINE_FIXTURE_001",
+                "status": "read",
+                "timestamp": "1786723203",
+                "recipient_id": "15550000001"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

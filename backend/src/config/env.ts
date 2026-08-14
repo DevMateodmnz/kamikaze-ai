@@ -25,6 +25,8 @@ const envSchema = z.object({
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+  // Never bypasses signatures in production; intended only for explicit local replay.
+  WHATSAPP_WEBHOOK_ALLOW_UNSIGNED_LOCAL: envBoolean.default(false),
   WHATSAPP_API_VERSION: z.string().default('v21.0'),
   WHATSAPP_WEBHOOK_PATH: z.string().default('/api/v1/whatsapp/webhook'),
 
@@ -112,6 +114,7 @@ function buildRawEnv() {
     WHATSAPP_ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
     WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET,
     WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
+    WHATSAPP_WEBHOOK_ALLOW_UNSIGNED_LOCAL: process.env.WHATSAPP_WEBHOOK_ALLOW_UNSIGNED_LOCAL,
     WHATSAPP_API_VERSION: process.env.WHATSAPP_API_VERSION,
     WHATSAPP_WEBHOOK_PATH: process.env.WHATSAPP_WEBHOOK_PATH,
     AI_PROVIDER: process.env.AI_PROVIDER,

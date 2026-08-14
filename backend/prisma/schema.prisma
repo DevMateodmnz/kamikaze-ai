@@ -79,11 +79,54 @@ model Message {
   createdAt      DateTime       @default(now())
 
   // WhatsApp metadata (unique constraint for idempotency)
-  whatsappMessageId String?      @unique @db.VarChar(100)
+  whatsappMessageId       String?                    @unique @db.VarChar(100)
+  deliveryStatus          WhatsAppDeliveryStatus?
+  deliveryStatusAt        DateTime?
+  deliveryMode            WhatsAppDeliveryMode?
+  whatsappDeliveryEvents  WhatsAppDeliveryEvent[]
 
   @@index([conversationId])
   @@index([createdAt])
   @@index([whatsappMessageId])
+}
+
+enum WhatsAppDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum WhatsAppDeliveryMode {
+  LIVE
+  DRY_RUN
+  OFFLINE_SIMULATION
+}
+
+// Append-only evidence from Meta delivery callbacks. Identical retries are
+// collapsed by eventFingerprint, while distinct out-of-order events remain.
+model WhatsAppDeliveryEvent {
+  id                    String   @id @default(cuid())
+  eventFingerprint      String   @unique @db.VarChar(64)
+  providerMessageId     String   @db.VarChar(100)
+  messageId             String?
+  message               Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  status                String   @db.VarChar(50)
+  recognized            Boolean
+  aggregateApplied      Boolean  @default(false)
+  providerTimestamp     DateTime?
+  recipientId           String?  @db.VarChar(50)
+  failure               Json?
+  conversation          Json?
+  pricing               Json?
+  rawEvent              Json
+  receivedAt            DateTime @default(now())
+
+  @@index([providerMessageId])
+  @@index([messageId, receivedAt])
+  @@index([status, receivedAt])
+  @@index([receivedAt])
 }
 
 enum MessageDirection {

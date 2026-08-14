@@ -25,6 +25,7 @@ import type { Intent as AiIntent } from '../ai-gateway/types.js';
 import { validateAiReply } from './ai-reply-guardrails.js';
 import { buildAiReplyContext } from './ai-reply-context.js';
 import { attemptWhatsAppDelivery } from './whatsapp-sender.js';
+import { recordOutboundProviderMessage } from './whatsapp-delivery.js';
 
 /**
  * Input for storing an inbound message
@@ -494,6 +495,13 @@ export async function processInboundMessage(
 
     // Attempt WhatsApp delivery (disabled by default — WHATSAPP_OUTBOUND_ENABLED=false)
     const deliveryResult = await attemptWhatsAppDelivery(replyTextToStore, result.customer.phone);
+    if (deliveryResult.waMessageId) {
+      await recordOutboundProviderMessage(
+        outbound.id,
+        deliveryResult.waMessageId,
+        deliveryResult.mode === 'dry_run' ? 'DRY_RUN' : 'LIVE'
+      );
+    }
     outboundDelivery = {
       attempted: deliveryResult.reason !== 'disabled' && deliveryResult.reason !== 'config_missing',
       sent: deliveryResult.sent,
@@ -604,6 +612,13 @@ export async function processInboundMessage(
         effectiveDecision.replyText,
         result.customer.phone
       );
+      if (deliveryResult.waMessageId) {
+        await recordOutboundProviderMessage(
+          outbound.id,
+          deliveryResult.waMessageId,
+          deliveryResult.mode === 'dry_run' ? 'DRY_RUN' : 'LIVE'
+        );
+      }
       outboundDelivery = {
         attempted: deliveryResult.reason !== 'disabled' && deliveryResult.reason !== 'config_missing',
         sent: deliveryResult.sent,

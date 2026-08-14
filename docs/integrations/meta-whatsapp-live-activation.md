@@ -1,126 +1,144 @@
-# Activación controlada de Meta WhatsApp
+# WhatsApp oficial: arquitectura, estados y activación controlada
 
-**Estado:** el repositorio contiene challenge, validación HMAC, parsing de texto y sender Cloud API, pero no contiene prueba creíble de conectividad Meta real. Esta lista separa preparación de código de acceso humano y evidencia de proveedor.
+**Vigencia:** 14 de agosto de 2026.
+**Estado:** el código y la prueba offline están implementados; no existe evidencia de tráfico real de Meta ni de recepción en un teléfono.
 
-## Código preparado
+## 1. Qué camino usamos
 
-- `GET /api/v1/security/whatsapp/webhook`: verifica `hub.mode`, token y devuelve challenge.
-- `POST /api/v1/security/whatsapp/webhook`: exige `WHATSAPP_ENABLED=true`, App Secret y `X-Hub-Signature-256` válido sobre bytes crudos.
-- parser de mensajes de texto; media, interactive y callbacks sin texto devuelven `200 ignored`.
-- pipeline durable e idempotente por `Message.whatsappMessageId` único.
-- sender Cloud API detrás de `WHATSAPP_OUTBOUND_ENABLED` y modo `live|dry_run`.
-- fallas de red o HTTP quedan en el trace como `delivery_failed`, `sent=false`.
+Kamikaze AI usa exclusivamente la **API oficial de WhatsApp Cloud de Meta**. No se admite automatización de WhatsApp Web, sesiones QR, scraping, puppeteering, Baileys ni mecanismos no oficiales.
 
-## Acceso y datos que debe aportar una persona autorizada
+Conceptos que no deben confundirse:
 
-- [ ] cuenta Meta Business y WhatsApp Business habilitadas;
-- [ ] Meta App asociada a la cuenta correcta;
-- [ ] número de prueba o número comercial aprobado;
-- [ ] `WHATSAPP_PHONE_NUMBER_ID`;
-- [ ] token de acceso vigente con permisos mínimos necesarios;
-- [ ] `WHATSAPP_VERIFY_TOKEN` generado para esta instalación;
-- [ ] `WHATSAPP_APP_SECRET`;
-- [ ] URL pública HTTPS estable hacia `/api/v1/security/whatsapp/webhook`;
-- [ ] lista de destinatarios/números de prueba autorizados;
-- [ ] ventana de prueba, responsable y canal de rollback.
+| Opción | Qué es | Uso en este producto |
+|---|---|---|
+| WhatsApp Business App | Aplicación para que una pyme atienda conversaciones manualmente desde sus dispositivos. | Puede ser la operación humana del comercio; por sí sola no es la integración del backend. |
+| WhatsApp Cloud API | API oficial alojada por Meta, con Graph API y webhooks. | Es el transporte programático de Kamikaze AI. Véanse [Get started](https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started) y [About the platform](https://developers.facebook.com/documentation/business-messaging/whatsapp/about-the-platform). |
+| Activación directa de desarrollador / número de prueba | Configuración inicial dentro de una Meta App para probar con recursos y destinatarios autorizados. | Sirve para probar el transporte propio; no demuestra que un número comercial esté listo para producción. |
+| Embedded Signup | Flujo oficial para que un proveedor de solución incorpore negocios y sus activos con consentimiento. | Es relevante al ofrecer onboarding a terceros; no hace falta para la primera integración directa propia. |
+| Coexistencia con WhatsApp Business App | Onboarding oficial que, cuando la cuenta y el país son elegibles, permite mantener la App y sumar Platform sobre el mismo número. | Debe validarse en la consola y documentación vigente; no se presume habilitada. Véase [onboarding de usuarios de Business App](https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users). |
+| Meta Tech Provider o partner | Modelo para incorporar y administrar múltiples negocios, o delegar esa operación a un proveedor autorizado. | No es requisito para probar la integración directa de la propia empresa. Sí debe evaluarse antes de escalar onboarding de clientes; usar un partner reduce operación propia pero agrega dependencia y costo. |
 
-Nunca pegue valores reales en este documento, Git, capturas públicas o salida de consola.
+## 2. Activos de producción
 
-## Postura de banderas
+Una persona autorizada debe preparar, sin pegarlos en Git ni en tickets públicos:
 
-Antes de la ventana:
+- Meta Business Portfolio;
+- Meta Developer App;
+- WhatsApp Business Account (WABA) e ID de WABA;
+- número habilitado y `WHATSAPP_PHONE_NUMBER_ID`;
+- token permanente de system user con permisos mínimos y plan de rotación; véase [Access tokens](https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens/);
+- Meta App Secret (`WHATSAPP_APP_SECRET`);
+- verify token aleatorio de esta instalación (`WHATSAPP_VERIFY_TOKEN`);
+- callback HTTPS público estable: `/api/v1/security/whatsapp/webhook`;
+- destinatario de prueba autorizado durante desarrollo.
+
+Nunca registrar tokens, App Secret, verify token, headers de autorización completos ni payloads con datos innecesarios.
+
+## 3. Comportamiento implementado
+
+### Entrada y autenticidad
+
+- `GET /api/v1/security/whatsapp/webhook` mantiene el challenge de suscripción.
+- El POST captura los bytes crudos antes de parsear JSON y verifica `X-Hub-Signature-256` con HMAC-SHA256 y comparación constante.
+- En producción falta de firma o firma inválida devuelve `401`.
+- En local/test una firma ausente solo se acepta si `WHATSAPP_WEBHOOK_ALLOW_UNSIGNED_LOCAL=true`; el valor por defecto es `false` y la bandera nunca evita la verificación en producción.
+- `WHATSAPP_ENABLED=false` mantiene la entrada deshabilitada.
+
+### Ciclo de entrega durable
+
+Al aceptar una salida, el `wamid` se asocia al `Message` OUTBOUND con agregado `PENDING`. Los callbacks reconocen `sent`, `delivered`, `read` y `failed`; preservan timestamp de proveedor, destinatario, error, conversación/pricing, evento normalizado y hora local de recepción.
+
+Cada evento único se agrega a `WhatsAppDeliveryEvent`. Un fingerprint único colapsa el replay exacto. Eventos distintos se conservan aun cuando no cambien el agregado.
+
+Política de estado:
+
+```text
+PENDING → SENT → DELIVERED → READ
+    └──────────→ FAILED
+```
+
+- `READ` no regresa ante `DELIVERED` o `SENT` tardíos.
+- `DELIVERED` no regresa ante `SENT`.
+- `FAILED` es terminal si aparece antes de evidencia positiva de entrega.
+- Un `FAILED` tardío después de `DELIVERED`/`READ` se conserva como evidencia, pero no borra esa evidencia positiva.
+- Estados futuros desconocidos se almacenan como no reconocidos y no modifican el agregado.
+- Un `wamid` desconocido crea sólo evidencia sin match; no fabrica cliente, conversación ni mensaje. El webhook responde `200` y emite un log estructurado sanitizado.
+
+La base existente no tiene historial de Prisma Migrate y `prisma/migrations` está ignorado. Por eso este cambio actualiza `schema.prisma` sin inventar una migración sobre una base no baselineada. Antes de producción debe definirse y revisar un baseline/migración no destructivo; no ejecutar resets.
+
+## 4. Prueba offline
+
+```bash
+cd backend
+npm run inspect:whatsapp-delivery
+```
+
+El comando crea PostgreSQL descartable, un OUTBOUND ficticio con fake `wamid`, aplica callbacks simulados `sent → delivered → read`, repite `read`, registra un evento sin match, imprime evidencia y destruye la base. Cada línea indica que es **SIMULACIÓN OFFLINE**: no llama a Meta ni demuestra recepción en un teléfono.
+
+## 5. Banderas iniciales seguras
 
 ```text
 WHATSAPP_ENABLED=false
 WHATSAPP_OUTBOUND_ENABLED=false
 WHATSAPP_OUTBOUND_MODE=dry_run
+WHATSAPP_WEBHOOK_ALLOW_UNSIGNED_LOCAL=false
 AI_CLASSIFICATION_ENABLED=false
 AI_REPLIES_ENABLED=false
 ESCALATION_EMAIL_ENABLED=false
 ```
 
-Habilite primero recepción, luego salida, y mantenga IA y correo apagados durante la prueba Meta inicial. La activación con credenciales faltantes debe fallar de forma visible: webhook POST sin App Secret devuelve error; salida live sin token o Phone Number ID devuelve `config_missing` y `sent=false`.
+Activar primero la entrada en una ventana controlada. Activar salida `live` sólo después de verificar firma, persistencia, destinatario y rollback. La salida real permanece deshabilitada por defecto.
 
-## Configuración en Meta
+## 6. Checklist credential-safe para validación real
 
-- [ ] Registrar la URL pública HTTPS y el verification token.
-- [ ] Completar el challenge y guardar evidencia sanitizada del `200`.
-- [ ] Suscribir, como mínimo, el campo `messages` permitido por la configuración actual de WhatsApp Cloud API.
-- [ ] Confirmar que el proxy conserva el cuerpo exacto para HMAC y el header `X-Hub-Signature-256`.
-- [ ] Restringir pruebas a números autorizados; no usar clientes reales.
-- [ ] Verificar versión API configurada en `WHATSAPP_API_VERSION` contra la versión aceptada por Meta en ese momento.
+1. Registrar commit, fecha, zona horaria, responsable y entorno, sin valores secretos.
+2. Confirmar callback HTTPS y que el proxy no altere body ni header de firma.
+3. Completar challenge GET con verify token almacenado fuera de Git.
+4. Enviar un texto desde el destinatario autorizado.
+5. Confirmar firma válida, `200`, una sola fila INBOUND y procesamiento terminado.
+6. Repetir exactamente el payload y confirmar que no aparece otra respuesta comercial.
+7. Mantener IA y correo apagados; habilitar salida oficial sólo durante la prueba.
+8. Confirmar intento OUTBOUND y que Meta **aceptó la solicitud** devolviendo un `wamid`.
+9. Confirmar callbacks reales `sent`, `delivered` e idealmente `read`, asociados al OUTBOUND.
+10. Confirmar el mensaje visualmente en el teléfono autorizado.
+11. Probar firma inválida (`401`) y falla de token/red de manera controlada.
+12. Deshabilitar salida, revisar logs por secretos y conservar sólo evidencia sanitizada.
 
-## Pruebas obligatorias
+### Evidencia exacta de éxito
 
-### 1. Challenge
+La prueba real sólo queda aprobada si contiene separadamente:
 
-**PASS:** Meta acepta la suscripción; el log sanitario muestra ruta, status `200` y timestamp, sin token.
+- webhook inbound capturado;
+- firma validada;
+- mensaje persistido una vez;
+- procesamiento completado;
+- outbound intentado;
+- Meta aceptó el outbound y devolvió `wamid`;
+- callbacks `sent`, `delivered` e idealmente `read` reconciliados;
+- mensaje observado en el teléfono autorizado;
+- ninguna respuesta comercial duplicada;
+- ningún secreto en logs o Git.
 
-**FAIL:** token incorrecto aceptado, challenge alterado o secreto expuesto.
+“Meta aceptó la solicitud” no equivale a “Meta informó delivered”, y ninguno equivale por sí solo a “una persona lo vio en su teléfono”.
 
-### 2. Firma y entrada real
+## 7. Políticas y uso acotado
 
-1. Enviar un texto desde un número autorizado.
-2. Confirmar firma válida y respuesta HTTP `200`.
-3. Capturar, sanitizados: timestamp, ID `wamid`, ID interno de mensaje y conversación.
-4. Confirmar una fila INBOUND y que cliente/conversación fueron resueltos.
-5. Enviar firma inválida/tampered en prueba controlada y exigir `401`.
+- El producto automatiza soporte y ventas de la empresa configurada; no es un asistente general.
+- La IA debe permanecer acotada a información verificada y flujos autorizados de esa empresa.
+- Pedidos ajenos se rechazan, redirigen o pasan a una persona.
+- La automatización debe ofrecer una ruta clara de escalación humana.
+- Los mensajes de clientes no se usan para entrenamiento sin otra base jurídica y revisión explícita de producto/legal.
+- Fuera de la ventana de servicio aplican templates aprobados y las políticas vigentes de WhatsApp; revisar siempre la [Business Policy](https://whatsappbusiness.com/policy/) antes de activar.
 
-**PASS:** mensaje auténtico persistido una vez y firma inválida rechazada.
+## 8. Precio: dato externo, no constante del código
 
-### 3. Salida real
+La página oficial vigente indica cobro por mensaje **entregado**, según mercado y categoría. Los mensajes de servicio en la ventana de atención de 24 horas iniciada por el cliente son actualmente gratuitos; las categorías cobrables y templates varían por mercado. Consultar la [página oficial de precios](https://whatsappbusiness.com/products/platform-pricing/) en cada propuesta y activación. No hardcodear tarifas ni tratarlas como un hecho eterno.
 
-1. Mantener IA/correo apagados.
-2. Activar `WHATSAPP_OUTBOUND_ENABLED=true` y `WHATSAPP_OUTBOUND_MODE=live` solo durante la ventana.
-3. Usar un destinatario autorizado.
-4. Capturar ID de mensaje devuelto por Meta, status HTTP, ID OUTBOUND interno y trace `sent=true`, sin token ni teléfono completo.
+## 9. Lo que sigue sin probar
 
-**PASS:** Meta acepta la solicitud, devuelve ID y el backend registra `delivered`/`sent=true` en la respuesta de procesamiento.
-
-**FAIL:** se afirma envío basándose solo en la existencia de una fila OUTBOUND o en `dry_run`.
-
-### 4. Callback de estado
-
-La arquitectura actual ignora callbacks sin texto y no guarda estados delivered/read/failed.
-
-- [ ] Confirmar que el callback recibe `200 ignored` para evitar retries.
-- [ ] Registrar esta limitación en el acta.
-- [ ] No marcar “trazabilidad de estado” como aprobada.
-
-La persistencia de callbacks de estado es trabajo futuro y solo debe exigirse si se incorpora al alcance del piloto.
-
-### 5. Duplicado
-
-Reenviar exactamente el mismo payload/`wamid` con firma válida.
-
-**PASS:** segunda respuesta indica duplicado; sigue existiendo una sola fila INBOUND, una sola respuesta OUTBOUND y como máximo una derivación correspondiente.
-
-### 6. Falla y rollback
-
-- [ ] Simular token inválido o indisponibilidad dentro de la ventana controlada.
-- [ ] Confirmar `sent=false`/`delivery_failed` y mensaje entrante conservado.
-- [ ] Desactivar inmediatamente `WHATSAPP_OUTBOUND_ENABLED`.
-- [ ] Si la entrada debe detenerse, desactivar `WHATSAPP_ENABLED` o retirar la suscripción en Meta.
-- [ ] Confirmar que no quedan retries no observados.
-
-## Evidencia a conservar
-
-- fecha, zona horaria, responsable y versión/commit desplegado;
-- entorno y banderas (nombres/estados, nunca valores secretos);
-- IDs Meta sanitizados, IDs internos y estados HTTP;
-- conteos antes/después para mensajes y derivaciones;
-- logs sanitizados de firma válida/inválida, duplicado y falla;
-- captura de configuración de suscripción sin secretos;
-- decisión PASS/FAIL por cada prueba y procedimiento de rollback ejecutado.
-
-## Secretos y rotación
-
-- almacenar secretos en el mecanismo del entorno, nunca en `.env` versionado;
-- conceder permisos mínimos y usar token de duración apropiada;
-- rotar token/App Secret si aparecen en una terminal compartida, ticket o captura;
-- después de rotar, repetir challenge, firma, entrada y salida;
-- revocar credenciales temporales al terminar la ventana.
-
-## Criterio global
-
-**Activación aprobada** solo si challenge, firma, entrada, salida, duplicado, falla y rollback pasan con evidencia sanitizada. El callback de estado se documenta como no soportado. Cualquier prueba sin evidencia queda **pendiente**, no “completa”.
+- credenciales y activos reales configurados correctamente;
+- ingreso firmado desde Meta detrás del HTTPS de producción;
+- aceptación real saliente;
+- callbacks reales y recepción en teléfono;
+- coexistencia/Embedded Signup para un comercio concreto;
+- operación sostenida, alertas, rotación de secretos y recuperación.

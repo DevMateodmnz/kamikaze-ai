@@ -17,10 +17,10 @@ import { validateEnv } from '../../config/env.js';
 
 /** Result of an outbound delivery attempt. */
 export interface WhatsAppDeliveryResult {
-  /** Whether the message was successfully sent. */
+  /** Whether Meta accepted the outbound API request (not phone delivery proof). */
   sent: boolean;
   /** Reason for the result (for trace/debug). */
-  reason: 'disabled' | 'config_missing' | 'delivered' | 'delivery_failed' | 'dry_run';
+  reason: 'disabled' | 'config_missing' | 'accepted' | 'delivered' | 'delivery_failed' | 'dry_run';
   /** Delivery mode: 'live' for real WhatsApp API, 'dry_run' for simulated. */
   mode?: 'live' | 'dry_run';
   /** Message ID from WhatsApp on success, or a deterministic dry-run ID. */
@@ -104,7 +104,7 @@ export async function attemptWhatsAppDelivery(
 
     return {
       sent: true,
-      reason: 'delivered',
+      reason: 'accepted',
       mode: 'live',
       waMessageId,
     };

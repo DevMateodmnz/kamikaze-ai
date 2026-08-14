@@ -1,10 +1,10 @@
 # Estado del piloto para cliente
 
-**Conclusión:** el producto está listo para una demostración local, repetible y segura. Todavía no está validado como piloto real de WhatsApp: faltan acceso y pruebas controladas en Meta, información comercial aprobada por Kamikaze y evidencia de operación con conversaciones reales.
+**Conclusión:** el producto está listo para una demostración local, repetible y segura. Todavía no está validado para operación real por WhatsApp: faltan acceso y pruebas controladas en Meta, información comercial aprobada de la empresa que lo adopte y evidencia de operación con conversaciones reales.
 
 ## 1. Objetivo del producto
 
-Kamikaze AI asiste consultas de venta y soporte que llegan por WhatsApp. La meta no es reemplazar a una persona: es responder información conocida y aprobada, registrar cada interacción y derivar a un asesor cuando la respuesta depende de stock, precio, condiciones particulares o criterio humano.
+Kamikaze AI es un operador auditable para consultas de venta y soporte por WhatsApp de pymes hispanohablantes. La meta no es reemplazar a una persona: es responder información conocida y verificada, registrar cada interacción y derivar cuando la respuesta depende de stock, precio, condiciones particulares o autorización humana.
 
 La solución sigue siendo **una instalación configurable para una empresa**. No es un SaaS multiempresa ni comparte datos entre clientes.
 
@@ -53,9 +53,9 @@ Tener código y pruebas con dobles locales **no demuestra** conectividad real. E
 ## 4. Limitaciones actuales
 
 - No hay prueba documentada de Meta entrante ni saliente con IDs reales sanitizados.
-- Falta cargar y aprobar la información real de Kamikaze; los ejemplos versionados no deben presentarse como datos de la empresa.
+- Falta cargar y aprobar la información de cada empresa adoptante; los ejemplos versionados son ficticios y no deben presentarse como datos reales.
 - No hay sincronización de inventario: stock y disponibilidad siempre pasan a una persona.
-- Los callbacks de estado de Meta se reconocen como eventos no soportados y se responden sin procesar; no existe trazabilidad durable de entregado/leído.
+- Los callbacks de estado de Meta tienen persistencia, deduplicación y reconciliación probadas offline; todavía no hay callbacks reales capturados desde Meta.
 - El gateway tiene un adaptador MiniMax; OpenAI, Gemini, Anthropic y proveedor local figuran como opciones de configuración pero no tienen adaptador implementado.
 - Los artefactos n8n cubren una simulación y correo de escalación; no constituyen un flujo real de WhatsApp validado.
 - La preparación de despliegue es parcial: no hay servicio backend en Compose ni historial de migraciones Prisma.
@@ -73,7 +73,7 @@ Tener código y pruebas con dobles locales **no demuestra** conectividad real. E
 ## 5. Próximos objetivos
 
 1. Activar y validar Meta WhatsApp real, entrante y saliente, con números de prueba autorizados.
-2. Cargar y aprobar la información real verificada de la empresa.
+2. Cargar y aprobar información real verificada de una empresa piloto autorizada.
 3. Ejecutar un piloto controlado con conversaciones seleccionadas.
 4. Medir preguntas sin respuesta, derivaciones, corrección de respuestas e incidentes operativos.
 5. Ajustar el asistente con evidencia del piloto.
@@ -85,7 +85,7 @@ El piloto será exitoso cuando:
 
 - Meta entregue mensajes reales al webhook público y el backend valide su firma;
 - el sistema responda a un número autorizado y se conserve el ID de proveedor como evidencia;
-- todas las respuestas comerciales usadas estén aprobadas por Kamikaze;
+- todas las respuestas comerciales usadas estén aprobadas por la empresa piloto;
 - ninguna consulta de stock o dato no verificado reciba una afirmación inventada;
 - cada derivación sea visible, tenga contexto suficiente y llegue a un responsable;
 - los reintentos de Meta no creen respuestas ni derivaciones duplicadas;

@@ -16,6 +16,11 @@ import {
   parseWhatsAppMessage,
 } from './whatsapp-webhook.js';
 import { messagesService } from '../messages/service.js';
+import { validateEnv } from '../../config/env.js';
+import {
+  parseWhatsAppDeliveryStatuses,
+  reconcileWhatsAppDeliveryStatuses,
+} from '../messages/whatsapp-delivery.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -60,7 +65,7 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
     const mode = query['hub.mode'] ?? '';
     const token = query['hub.verify_token'] ?? '';
     const challenge = query['hub.challenge'] ?? '';
-    const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN ?? '';
+    const expectedToken = validateEnv().WHATSAPP_VERIFY_TOKEN ?? '';
 
     try {
       const result = verifyHubChallenge(mode, token, challenge, expectedToken);
@@ -88,21 +93,19 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
   // ----------------------------------------------------------------
   app.post('/whatsapp/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
     // Check if WhatsApp is enabled
-    const enabled = process.env.WHATSAPP_ENABLED === 'true';
+    const env = validateEnv();
+    const enabled = env.WHATSAPP_ENABLED;
     if (!enabled) {
       return reply.status(503).send('WhatsApp webhook is disabled');
     }
 
     // Verify we have the shared secret
-    const appSecret = process.env.WHATSAPP_APP_SECRET ?? '';
-    if (!appSecret) {
-      return reply.status(500).send('WHATSAPP_APP_SECRET not configured');
-    }
-
     // Extract and validate the signature header
     const signatureHeader = request.headers['x-hub-signature-256'];
     const signature = typeof signatureHeader === 'string' ? signatureHeader : '';
-    if (!signature) {
+    const unsignedLocalAllowed =
+      env.NODE_ENV !== 'production' && env.WHATSAPP_WEBHOOK_ALLOW_UNSIGNED_LOCAL;
+    if (!signature && !unsignedLocalAllowed) {
       return reply.status(401).send('Missing X-Hub-Signature-256 header');
     }
 
@@ -112,10 +115,16 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
       return reply.status(400).send('Empty request body');
     }
 
-    // Verify the HMAC signature
-    const isValid = verifyWebhookSignature(rawBody, signature, appSecret);
-    if (!isValid) {
-      return reply.status(401).send('Invalid signature');
+    // A signature, when present, is always verified. Unsigned requests are
+    // accepted only outside production behind an explicit test/local flag.
+    if (signature) {
+      const appSecret = env.WHATSAPP_APP_SECRET ?? '';
+      if (!appSecret) {
+        return reply.status(500).send('WHATSAPP_APP_SECRET not configured');
+      }
+      if (!verifyWebhookSignature(rawBody, signature, appSecret)) {
+        return reply.status(401).send('Invalid signature');
+      }
     }
 
     // Signature verified — payload is authentic.
@@ -123,6 +132,28 @@ export const securityRouter: FastifyPluginAsync = async (app: FastifyInstance) =
     // Meta sends the raw JSON as the body; Fastify has already parsed it
     // because the preParsing hook re-emitted the raw bytes as a stream.
     const body = request.body as Record<string, unknown> | null;
+
+    const deliveryStatuses = parseWhatsAppDeliveryStatuses(body);
+    if (deliveryStatuses.length > 0) {
+      const results = await reconcileWhatsAppDeliveryStatuses(deliveryStatuses);
+      for (const result of results) {
+        if (!result.matched || !['sent', 'delivered', 'read', 'failed'].includes(result.status)) {
+          request.log.warn({
+            event: 'whatsapp_delivery_status_observed',
+            providerMessageId: result.providerMessageId,
+            providerStatus: result.status,
+            matched: result.matched,
+            duplicate: result.duplicate,
+          });
+        }
+      }
+      return reply.status(200).send({
+        status: 'delivery_statuses_recorded',
+        received: results.length,
+        duplicates: results.filter((result) => result.duplicate).length,
+        unmatched: results.filter((result) => !result.matched).length,
+      });
+    }
 
     const parsed = parseWhatsAppMessage(body);
 

@@ -7,7 +7,8 @@ Evidence was rechecked against `master` starting at `5157be17740eea168f412db3bc1
 | WhatsApp webhook verification challenge | **Verified locally** | `backend/src/modules/security/whatsapp-webhook.ts` (`verifyHubChallenge`), route in `security/routes.ts`, tests in `whatsapp-webhook.test.ts` |
 | Meta webhook authenticity/signature validation | **Verified locally** | HMAC-SHA256 over captured raw bytes with `timingSafeEqual`; valid, tampered and malformed signature tests in `whatsapp-webhook.test.ts` |
 | Inbound text extraction | **Verified locally** | `parseWhatsAppMessage`; extraction test in `whatsapp-webhook.test.ts` |
-| Unsupported webhook-event handling | **Verified locally** | parser returns null for media/status; route returns `200 {status:"ignored"}`; parser cases tested locally |
+| Unsupported webhook-event handling | **Verified locally** | media/interactive remain safely ignored; unknown status strings are durably retained without changing the aggregate |
+| Meta delivery-status lifecycle | **Verified offline** | append-only `WhatsAppDeliveryEvent`, monotonic Message aggregate, exact-replay idempotency, unmatched evidence and disposable proof via `npm run inspect:whatsapp-delivery` |
 | WhatsApp message-ID idempotency | **Verified locally** | Prisma unique `Message.whatsappMessageId`, lookup in `messages/service.ts`, Scenario C in `npm run demo:pilot` |
 | Duplicate webhook delivery behavior | **Verified locally** | second processing result is `duplicate=true`, `processing=null`; demo asserts no duplicate outbound/escalation |
 | Customer persistence | **Verified locally** | `Customer` schema, `customers/service.ts`, persistence tests and pilot runner queries |
@@ -26,7 +27,7 @@ Evidence was rechecked against `master` starting at `5157be17740eea168f412db3bc1
 | n8n integration | **Partially implemented** | only `004b-simulated-message-flow.json` and `008-escalation-email-notification.json`, structurally tested; no live WhatsApp workflow/provider run in this audit |
 | Outbound-message persistence | **Verified locally** | store-first `Message.direction=OUTBOUND`; demo scenarios assert durable counts before delivery result |
 | WhatsApp dry-run delivery | **Verified locally** | `whatsapp-sender.ts`, no-fetch unit test, Scenarios A/B/C report `reason=dry_run` |
-| Live WhatsApp outbound delivery code | **Implemented but awaiting real-provider validation** | Graph `/messages` sender with flags/config checks and mocked HTTP tests; no real provider ID evidence |
+| Live WhatsApp outbound delivery code | **Implemented but awaiting real-provider validation** | Graph `/messages` sender with flags/config checks, accepted `wamid` persistence and mocked HTTP tests; no real provider ID evidence |
 | Real Meta inbound proof | **Not found** | no sanitized real webhook log, Meta message ID evidence or approved manual QA artifact found |
 | Real Meta outbound proof | **Not found** | no sanitized provider acceptance/recipient proof found |
 | Health/readiness | **Verified locally** | `/health` and `/health/ready`; `health.test.ts`; readiness checks Prisma with HTTP 503 on DB failure |

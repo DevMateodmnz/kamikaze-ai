@@ -21,7 +21,8 @@
     "check:kb-safety": "bash ../scripts/check-kb-safety.sh",
     "check:fixtures": "vitest run tests/unit/conversation-fixtures.test.ts",
     "inspect:fixtures": "tsx src/scripts/inspect-conversation-fixtures.ts",
-    "inspect:fixtures:real": "tsx src/scripts/inspect-conversation-fixtures-real.ts"
+    "inspect:fixtures:real": "tsx src/scripts/inspect-conversation-fixtures-real.ts",
+    "inspect:whatsapp-delivery": "bash ../scripts/whatsapp-delivery-offline-proof.sh"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

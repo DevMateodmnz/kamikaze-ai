@@ -125,7 +125,10 @@ export function inspectMessageProcessing(
         'No Meta API call was made.'
       );
     } else if (od.sent) {
-      notes.push(`WhatsApp delivery succeeded (id: ${od.waMessageId ?? 'unknown'}).`);
+      notes.push(
+        `Meta accepted the WhatsApp request (id: ${od.waMessageId ?? 'unknown'}); ` +
+        'delivery still requires provider callbacks and phone observation.'
+      );
     } else if (!od.attempted) {
       notes.push(`WhatsApp delivery not attempted (reason: ${od.reason}).`);
     } else {
