@@ -24,7 +24,7 @@ Thumbs.db
 *.swo
 
 # Prisma migrations
-**/prisma/migrations/
+# Prisma migration history is versioned; never ignore prisma/migrations.
 
 # Test coverage
 coverage/

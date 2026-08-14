@@ -34,7 +34,7 @@ docker compose up -d postgres n8n
 cd backend
 npm install
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 npm run dev
 
 # Verify
@@ -47,6 +47,7 @@ curl http://localhost:3000/health/ready
 - [Architecture](docs/architecture.md)
 - [Business Profile Setup](docs/deployment/business-profile.md) — configure for another company
 - [Deployment Runbook](docs/deployment/runbook.md) — step-by-step setup and demo guide
+- [Prisma migration baseline](docs/deployment/prisma-migration-baseline.md) — instalación y adopción no destructiva
 - [Client Demo Playbook](docs/manual-tests/client-demo-playbook.md) — presentación lista para cliente: guion, talk track y recovery
 - [MVP Company Demo](docs/manual-tests/mvp-company-demo.md) — 5-minute demo runbook for presenting to a business
 - [WhatsApp Dry-Run Demo](docs/manual-tests/whatsapp-dry-run-demo.md) — technical dry-run walkthrough

@@ -64,7 +64,7 @@ PENDING → SENT → DELIVERED → READ
 - Estados futuros desconocidos se almacenan como no reconocidos y no modifican el agregado.
 - Un `wamid` desconocido crea sólo evidencia sin match; no fabrica cliente, conversación ni mensaje. El webhook responde `200` y emite un log estructurado sanitizado.
 
-La base existente no tiene historial de Prisma Migrate y `prisma/migrations` está ignorado. Por eso este cambio actualiza `schema.prisma` sin inventar una migración sobre una base no baselineada. Antes de producción debe definirse y revisar un baseline/migración no destructivo; no ejecutar resets.
+El repositorio ya contiene un baseline legado y una migración forward separados. Esto **no** significa que una base existente haya adoptado la historia. Antes de producción se debe seguir el [runbook de adopción Prisma](../deployment/prisma-migration-baseline.md), con backup y drift cero; nunca ejecutar resets.
 
 ## 4. Prueba offline
 

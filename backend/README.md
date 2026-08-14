@@ -8,7 +8,7 @@ Node.js + TypeScript + Fastify backend for the Kamikaze AI WhatsApp assistant.
 cd backend
 npm install
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 npm run dev
 ```
 

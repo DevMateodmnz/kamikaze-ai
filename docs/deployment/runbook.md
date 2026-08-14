@@ -135,7 +135,7 @@ docker compose up -d postgres
 cd backend
 npm install
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 
 # Seed the knowledge base (choose Acme or Kamikaze, see Section 3)
 npm run seed:kb
